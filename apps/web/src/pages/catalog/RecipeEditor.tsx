@@ -11,8 +11,8 @@ export function RecipeEditor({ items, value, onChange, compact }: { items: Inven
       {value.map((line, i) => {
         const item = items.find((x) => x.id === line.inventoryItemId);
         return (
-          <div key={i} className="flex items-center gap-2">
-            <Select className="flex-1" value={line.inventoryItemId} onChange={(e) => update(i, { inventoryItemId: e.target.value })}>
+          <div key={i} className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2 last:border-0 sm:flex-nowrap sm:border-0 sm:pb-0">
+            <Select className="basis-full sm:basis-auto sm:flex-1" value={line.inventoryItemId} onChange={(e) => update(i, { inventoryItemId: e.target.value })}>
               <option value="">Selecciona…</option>
               {active.map((it) => (
                 <option key={it.id} value={it.id}>{it.name} {it.type === 'PRODUCT' ? '(producto)' : ''}</option>
@@ -27,7 +27,7 @@ export function RecipeEditor({ items, value, onChange, compact }: { items: Inven
               value={line.quantity || ''}
               onChange={(e) => update(i, { quantity: Number(e.target.value) })}
             />
-            <span className="w-10 text-xs text-slate-500">{item?.unit ?? ''}</span>
+            <span className="w-12 text-sm font-medium text-slate-600">{item?.unit ?? ''}</span>
             <Button variant="ghost" type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))} aria-label="Quitar">
               <Trash2 className="size-4 text-red-600" />
             </Button>

@@ -149,11 +149,12 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
             {isCombo && (
               <div className="mt-3 space-y-2">
                 {comboItems.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Select className="flex-1" value={c.productId} onChange={(e) => setComboItems(comboItems.map((x, k) => (k === i ? { ...x, productId: e.target.value } : x)))}>
+                  <div key={i} className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2 last:border-0 sm:flex-nowrap sm:border-0 sm:pb-0">
+                    <Select className="basis-full sm:basis-auto sm:flex-1" value={c.productId} onChange={(e) => setComboItems(comboItems.map((x, k) => (k === i ? { ...x, productId: e.target.value } : x)))}>
                       <option value="">Producto…</option>
                       {comboCandidates.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCOP(p.price)}</option>)}
                     </Select>
+                    <span className="text-sm text-slate-600 sm:hidden">Cantidad</span>
                     <Input className="w-20 text-right" type="number" min={1} value={c.quantity}
                       onChange={(e) => setComboItems(comboItems.map((x, k) => (k === i ? { ...x, quantity: Math.max(1, Number(e.target.value)) } : x)))} />
                     <Button variant="ghost" onClick={() => setComboItems(comboItems.filter((_, k) => k !== i))} aria-label="Quitar"><Trash2 className="size-4 text-red-600" /></Button>
