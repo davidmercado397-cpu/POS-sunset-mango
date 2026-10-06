@@ -116,13 +116,21 @@ export class PlatformService {
     const tenant = await this.prisma.tenant.findUnique({ where: { id } });
     if (!tenant) throw new NotFoundException('Negocio no encontrado');
     const modules = dto.enabledModules ? this.cleanModules(dto.enabledModules) : undefined;
-    const storeSubdomain = dto.storeSubdomain !== undefined ? normalizeSubdomain(dto.storeSubdomain) : undefined;
-    const storeDomain = dto.storeDomain !== undefined ? (dto.storeDomain.trim() ? normalizeDomain(dto.storeDomain) : null) : undefined;
+    // Subdominio vacío = la tienda usa el dominio de tiendas directamente (ej. pedidos.tudominio.com).
+    const useRoot = dto.storeSubdomain !== undefined && !dto.storeSubdomain.trim();
+    if (useRoot && !this.env.publicStoreDomain && !dto.storeDomain?.trim()) {
+      throw new BadRequestException('Escribe un subdominio o un dominio propio');
+    }
+    const storeSubdomain = dto.storeSubdomain !== undefined ? (useRoot ? null : normalizeSubdomain(dto.storeSubdomain)) : undefined;
+    let storeDomain = dto.storeDomain !== undefined ? (dto.storeDomain.trim() ? normalizeDomain(dto.storeDomain) : null) : undefined;
+    if (useRoot && !storeDomain) storeDomain = this.env.publicStoreDomain!;
     if (storeSubdomain && (await this.prisma.tenant.findFirst({ where: { storeSubdomain, id: { not: id } } }))) {
       throw new ConflictException('Ese subdominio ya está en uso');
     }
     if (storeDomain && (await this.prisma.tenant.findFirst({ where: { storeDomain, id: { not: id } } }))) {
-      throw new ConflictException('Ese dominio ya está asignado a otro negocio');
+      throw new ConflictException(
+        storeDomain === this.env.publicStoreDomain ? `Otro negocio ya usa ${storeDomain} sin subdominio` : 'Ese dominio ya está asignado a otro negocio',
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {

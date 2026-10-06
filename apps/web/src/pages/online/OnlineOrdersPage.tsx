@@ -201,7 +201,7 @@ function SettingsTab() {
   const url = data ? (data.storeUrl.startsWith('http') ? data.storeUrl : `${window.location.origin}${data.storeUrl}`) : '';
   const { can } = useAuth();
   const [sub, setSub] = useState('');
-  useEffect(() => { if (data?.storeSubdomain) setSub(data.storeSubdomain); }, [data?.storeSubdomain]);
+  useEffect(() => { if (data) setSub(data.storeSubdomain ?? ''); }, [data?.storeSubdomain, data]);
   const saveSub = useApiMutation(() => api('/online/subdomain', { method: 'PUT', json: { storeSubdomain: sub } }), {
     invalidate: [['online', 'settings']],
     success: 'Subdominio actualizado',
@@ -223,16 +223,17 @@ function SettingsTab() {
           <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success('Enlace copiado'))} aria-label="Copiar"><Copy className="size-4" /></Button>
           <a href={url} target="_blank" rel="noreferrer"><Button variant="secondary" aria-label="Abrir"><ExternalLink className="size-4" /></Button></a>
         </div>
-        {data?.publicStoreDomain && !data.storeDomain && can('settings.manage') && (
+        {data?.publicStoreDomain && (!data.storeDomain || data.storeDomain === data.publicStoreDomain) && can('settings.manage') && (
           <Field label="Subdominio de la tienda">
             <div className="flex items-center gap-2">
-              <Input value={sub} onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              <Input value={sub} placeholder="(vacío)" onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
               <span className="shrink-0 text-sm text-slate-500">.{data.publicStoreDomain}</span>
-              <Button variant="secondary" loading={saveSub.isPending} disabled={!sub || sub === data.storeSubdomain} onClick={() => saveSub.mutate()}>Cambiar</Button>
+              <Button variant="secondary" loading={saveSub.isPending} disabled={sub === (data.storeSubdomain ?? '')} onClick={() => saveSub.mutate()}>Cambiar</Button>
             </div>
+            <span className="mt-1 block text-xs text-slate-500">Déjalo vacío para usar <b>{data.publicStoreDomain}</b> directamente.</span>
           </Field>
         )}
-        {data?.storeDomain && <p className="text-xs text-slate-500">Tu tienda usa el dominio propio <b>{data.storeDomain}</b>, asignado por el proveedor.</p>}
+        {data?.storeDomain && data.storeDomain !== data.publicStoreDomain && <p className="text-xs text-slate-500">Tu tienda usa el dominio propio <b>{data.storeDomain}</b>, asignado por el proveedor.</p>}
         {data && !data.publicStoreDomain && !data.storeDomain && (
           <p className="text-xs text-slate-500">Cuando el proveedor configure el dominio de tiendas, aquí podrás elegir un subdominio propio.</p>
         )}

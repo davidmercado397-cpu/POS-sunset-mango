@@ -281,13 +281,33 @@ export class OnlineService {
     return this.settings(branch);
   }
 
-  /** El negocio cambia el subdominio de su tienda (el dominio propio lo asigna el Super Admin). */
+  /**
+   * El negocio cambia el subdominio de su tienda (el dominio propio lo asigna el Super Admin).
+   * Vacío = la tienda queda directamente en el dominio de tiendas; solo un negocio puede usarlo.
+   */
   async updateSubdomain(user: AuthUser, branch: BranchContext, value: string) {
     const tenantId = tenantOf(user);
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    if (tenant.storeDomain && tenant.storeDomain !== this.env.publicStoreDomain) {
+      throw new BadRequestException('Tu tienda usa un dominio propio; pide al proveedor que lo cambie');
+    }
+    if (!value.trim()) {
+      const root = this.env.publicStoreDomain;
+      if (!root) throw new BadRequestException('Escribe un subdominio');
+      const taken = await this.prisma.tenant.findFirst({ where: { storeDomain: root, id: { not: tenantId } } });
+      if (taken) throw new ConflictException(`Otro negocio ya usa ${root} sin subdominio`);
+      await this.prisma.tenant.update({ where: { id: tenantId }, data: { storeSubdomain: null, storeDomain: root } });
+      await this.audit.log({ tenantId, userId: user.id, action: 'online.subdomain', data: { storeDomain: root } });
+      return this.settings(branch);
+    }
     const storeSubdomain = normalizeSubdomain(value);
     const taken = await this.prisma.tenant.findFirst({ where: { storeSubdomain, id: { not: tenantId } } });
     if (taken) throw new ConflictException('Ese subdominio ya está en uso');
-    await this.prisma.tenant.update({ where: { id: tenantId }, data: { storeSubdomain } });
+    // Si usaba el dominio sin subdominio, lo libera para otro negocio.
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { storeSubdomain, ...(tenant.storeDomain === this.env.publicStoreDomain ? { storeDomain: null } : {}) },
+    });
     await this.audit.log({ tenantId, userId: user.id, action: 'online.subdomain', data: { storeSubdomain } });
     return this.settings(branch);
   }

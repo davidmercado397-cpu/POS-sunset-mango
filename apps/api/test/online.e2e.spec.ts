@@ -149,6 +149,18 @@ describe('Pedidos en línea', () => {
     await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { storeDomain: '' }).expect(200);
     expect((await ctx.admin.get('/online/settings')).body.storeUrl).toBe('https://sunsetmango.pedidos.test.co');
 
+    // Subdominio vacío: la tienda queda en el dominio de tiendas directamente (un solo negocio).
+    settings = await ctx.admin.put('/online/subdomain', { storeSubdomain: '' }).expect(200);
+    expect(settings.body).toMatchObject({ storeSubdomain: null, storeDomain: 'pedidos.test.co', storeUrl: 'https://pedidos.test.co' });
+    expect((await host('pedidos.test.co')).body).toEqual({ store: 'tienda' });
+    await other.admin.put('/online/subdomain', { storeSubdomain: '' }).expect(409);
+    await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeSubdomain: '', storeDomain: '' }).expect(409);
+    // Al volver a un subdominio, libera el dominio para otro negocio.
+    await ctx.admin.put('/online/subdomain', { storeSubdomain: 'sunsetmango' }).expect(200);
+    expect((await host('pedidos.test.co')).body).toEqual({ store: null });
+    await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeSubdomain: '', storeDomain: '' }).expect(200);
+    expect((await host('pedidos.test.co')).body).toEqual({ store: 'otro-negocio' });
+
     // Un negocio suspendido o sin el módulo no responde en su subdominio.
     await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { isActive: false }).expect(200);
     expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: null });

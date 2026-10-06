@@ -181,8 +181,10 @@ function useUpdateTenant(id: string) {
 
 function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
   const [name, setName] = useState(tenant.name);
+  // Si la tienda usa el dominio de tiendas sin subdominio, ambos campos se muestran vacíos.
+  const usesRoot = !!tenant.publicStoreDomain && tenant.storeDomain === tenant.publicStoreDomain;
   const [sub, setSub] = useState(tenant.storeSubdomain ?? '');
-  const [domain, setDomain] = useState(tenant.storeDomain ?? '');
+  const [domain, setDomain] = useState(usesRoot ? '' : (tenant.storeDomain ?? ''));
   const update = useUpdateTenant(tenant.id);
   const url = tenant.storeUrl.startsWith('http') ? tenant.storeUrl : `${window.location.origin}${tenant.storeUrl}`;
   return (
@@ -193,9 +195,12 @@ function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
         {tenant.publicStoreDomain ? (
           <Field label="Subdominio">
             <div className="flex items-center gap-2">
-              <Input value={sub} onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              <Input value={sub} placeholder="(vacío)" onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
               <span className="shrink-0 text-sm text-slate-500">.{tenant.publicStoreDomain}</span>
             </div>
+            <span className="mt-1 block text-xs text-slate-500">
+              Déjalo vacío para que la tienda quede directamente en <b>{tenant.publicStoreDomain}</b> (solo un negocio puede usarlo).
+            </span>
           </Field>
         ) : (
           <p className="text-xs text-slate-500">Define PUBLIC_STORE_DOMAIN en el servidor para dar a cada negocio un subdominio automático.</p>
@@ -205,7 +210,7 @@ function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
         </Field>
         <p className="text-xs text-slate-500">El dominio propio debe apuntar (registro DNS) al servidor y tener su certificado HTTPS en el servidor web.</p>
         <div className="flex justify-end">
-          <Button loading={update.isPending} onClick={() => update.mutate({ ...(tenant.publicStoreDomain && sub ? { storeSubdomain: sub } : {}), storeDomain: domain })}>Guardar dirección</Button>
+          <Button loading={update.isPending} onClick={() => update.mutate({ ...(tenant.publicStoreDomain ? { storeSubdomain: sub } : {}), storeDomain: domain })}>Guardar dirección</Button>
         </div>
       </Card>
       <Field label="Nombre">

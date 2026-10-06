@@ -84,6 +84,7 @@ export class ConfirmPaymentDto {
 }
 
 export class SubdomainDto {
-  @IsString() @MinLength(2) @MaxLength(40)
+  /** Vacío = usar el dominio de tiendas sin subdominio */
+  @IsString() @MaxLength(40)
   storeSubdomain: string;
 }
