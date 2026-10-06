@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+
+/* Colores de marca: se reemplazan en tiempo de ejecución con los del negocio (ver lib/theme.ts). */
+:root {
+  --brand: #f97316;
+  --brand-dark: #7c2d12;
+  --brand-contrast: #ffffff;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-contrast: var(--brand-contrast);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  -webkit-tap-highlight-color: transparent;
+}

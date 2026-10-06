@@ -1,6 +1,6 @@
 # Plan — POS Sunset Mango (SaaS para restaurantes)
 
-> Estado: **v3 — aprobado**. Incluye las respuestas de las tres rondas de preguntas.
+> Estado: **v3 — aprobado**. Incluye las respuestas de las tres rondas de preguntas. Fase 1 completada.
 
 ## 1. Visión general
 
