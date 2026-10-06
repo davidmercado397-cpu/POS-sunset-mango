@@ -53,12 +53,13 @@ Para probar todo de inmediato, carga un negocio de ejemplo con dos sedes, catál
 docker compose exec app node dist/prisma/demo.js
 ```
 
-| Usuario | Rol |
+| Correo de ingreso | Rol |
 |---|---|
-| `demo-admin` | Administrador del negocio |
-| `demo-sede` | Administrador de sede |
-| `demo-cajero` | Cajero |
-| `demo-cocina` | Cocina |
+| `admin@sunsetmango.com` | Administrador del negocio |
+| `sede@sunsetmango.com` | Administrador de sede |
+| `cajero@sunsetmango.com` | Cajero |
+| `mesero@sunsetmango.com` | Mesero |
+| `cocina@sunsetmango.com` | Cocina |
 
 La contraseña de todos es `Demo12345`. Para ver la tienda pública abre `/pedir/sunset-mango-demo`; para recibir pedidos, la caja de la sede debe estar abierta.
 
@@ -75,6 +76,7 @@ La contraseña de todos es `Demo12345`. Para ver la tienda pública abre `/pedir
 | `COOKIE_SECURE` | `true` cuando se sirve por HTTPS (producción) |
 | `TRUST_PROXY` | Número de proxies delante de la app (1 = el servidor web del VPS) |
 | `MAX_LOGIN_ATTEMPTS` / `LOCK_MINUTES` | Bloqueo tras intentos fallidos (5 intentos / 15 min) |
+| `ENCRYPTION_KEY` | (Opcional) Clave para cifrar llaves de terceros como Bold. Si no se define se usa `JWT_ACCESS_SECRET`; si la cambias, las llaves deben ingresarse de nuevo |
 
 ## Desarrollo local
 

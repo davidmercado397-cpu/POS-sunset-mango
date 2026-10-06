@@ -6,9 +6,11 @@ import { AuthUser } from '../common/auth-user';
 import { CORE_MODULES, MODULE_CATALOG } from '../common/modules';
 import { isValidPermission, PERMISSION_CATALOG } from '../common/permissions';
 import { tenantOf } from '../common/util';
+import { encryptSecret } from '../common/secret-box';
+import { BoldService } from '../payments/bold.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
-import { BranchDto, BrandingDto, CreateUserDto, NamedDto, RoleDto, TableDto, UpdateUserDto } from './admin.dto';
+import { BoldSettingsDto, BranchDto, BrandingDto, CreateUserDto, NamedDto, RoleDto, TableDto, UpdateUserDto } from './admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -16,6 +18,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly uploads: UploadsService,
+    private readonly bold: BoldService,
   ) {}
 
   // ───────── Sedes ─────────
@@ -108,7 +111,7 @@ export class AdminService {
         tenantId,
         username,
         fullName: dto.fullName.trim(),
-        email: dto.email,
+        email: dto.email || (username.includes('@') ? username : undefined),
         roleId: dto.roleId,
         passwordHash: await hashPassword(dto.password),
         branches: { create: dto.branchIds.map((branchId) => ({ branchId })) },
@@ -244,6 +247,34 @@ export class AdminService {
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl: null } });
     await this.uploads.remove(tenantId, current.logoUrl);
     return this.branding(user);
+  }
+
+  // ───────── Pagos en línea (Bold) ─────────
+
+  async boldSettings(user: AuthUser) {
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantOf(user) } });
+    return {
+      enabled: t.boldEnabled,
+      identityKey: t.boldIdentityKey ?? '',
+      hasSecretKey: !!t.boldSecretKeyEnc,
+      integrationReady: this.bold.integrationReady,
+      active: this.bold.isReady(t),
+    };
+  }
+
+  async updateBoldSettings(user: AuthUser, dto: BoldSettingsDto) {
+    const tenantId = tenantOf(user);
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        boldEnabled: dto.enabled,
+        boldIdentityKey: dto.identityKey?.trim() || null,
+        ...(dto.secretKey?.trim() ? { boldSecretKeyEnc: encryptSecret(dto.secretKey.trim()) } : {}),
+      },
+    });
+    // Nunca se registra la llave secreta en la auditoría.
+    await this.audit.log({ tenantId, userId: user.id, action: 'settings.bold', data: { enabled: dto.enabled, secretChanged: !!dto.secretKey?.trim() } });
+    return this.boldSettings(user);
   }
 
   // ───────── Categorías de gastos ─────────

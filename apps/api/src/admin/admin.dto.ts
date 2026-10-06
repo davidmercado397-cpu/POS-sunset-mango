@@ -1,3 +1,4 @@
+import { LOGIN_ID_MESSAGE, LOGIN_ID_REGEX } from '../common/login-id';
 import { ArrayUnique, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
 
 export class BranchDto {
@@ -21,7 +22,7 @@ export class CreateUserDto {
   @IsString() @MinLength(2) @MaxLength(100)
   fullName: string;
 
-  @IsString() @Matches(/^[a-zA-Z0-9._-]{3,40}$/, { message: 'El usuario solo admite letras, números, punto, guion y guion bajo (3 a 40)' })
+  @IsString() @MaxLength(120) @Matches(LOGIN_ID_REGEX, { message: LOGIN_ID_MESSAGE })
   username: string;
 
   @IsOptional() @IsString() @MaxLength(120)
@@ -96,4 +97,16 @@ export class TableDto {
 
   @IsOptional() @IsBoolean()
   isActive?: boolean;
+}
+
+export class BoldSettingsDto {
+  @IsBoolean()
+  enabled: boolean;
+
+  @IsOptional() @IsString() @MaxLength(200)
+  identityKey?: string;
+
+  /** Solo se envía para cambiarla; vacío conserva la actual */
+  @IsOptional() @IsString() @MaxLength(300)
+  secretKey?: string;
 }

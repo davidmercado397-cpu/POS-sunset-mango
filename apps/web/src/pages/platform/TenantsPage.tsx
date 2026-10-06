@@ -122,8 +122,8 @@ function CreateTenantModal({ modules, onClose }: { modules: ModuleInfo[]; onClos
             <Field label="Nombre completo">
               <Input value={admin.fullName} onChange={(e) => setAdmin({ ...admin, fullName: e.target.value })} />
             </Field>
-            <Field label="Usuario">
-              <Input value={admin.username} autoCapitalize="none" onChange={(e) => setAdmin({ ...admin, username: e.target.value })} />
+            <Field label="Correo de ingreso">
+              <Input value={admin.username} autoCapitalize="none" inputMode="email" placeholder="admin@negocio.com" onChange={(e) => setAdmin({ ...admin, username: e.target.value })} />
             </Field>
             <Field label="Contraseña">
               <Input type="password" value={admin.password} autoComplete="new-password" onChange={(e) => setAdmin({ ...admin, password: e.target.value })} />
@@ -247,7 +247,7 @@ function TenantUsers({ tenant }: { tenant: TenantDetail }) {
           <div className="min-w-0">
             <p className="truncate font-medium">{u.fullName} {!u.isActive && <Badge tone="red">Inactivo</Badge>}</p>
             <p className="truncate text-xs text-slate-500">
-              @{u.username} · {u.role ?? 'Sin rol'} · {u.lastLoginAt ? `Último ingreso ${formatDateTime(u.lastLoginAt)}` : 'Nunca ha ingresado'}
+              {u.username} · {u.role ?? 'Sin rol'} · {u.lastLoginAt ? `Último ingreso ${formatDateTime(u.lastLoginAt)}` : 'Nunca ha ingresado'}
             </p>
           </div>
           <Button variant="secondary" onClick={() => { setTarget(u); setPassword(''); }}>

@@ -27,6 +27,8 @@ interface OnlineOrder {
   notes: string | null;
   paymentMethod: PaymentMethod;
   payWith: number | null;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED';
+  paymentReference: string | null;
   items: { productName: string; quantity: number; lineTotal: number; notes: string | null; modifiers: { optionName: string }[] }[];
   subtotal: number;
   deliveryFee: number;
@@ -34,10 +36,10 @@ interface OnlineOrder {
   rejectReason: string | null;
   createdAt: string;
 }
-interface Settings { slug: string; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null }
+interface Settings { slug: string; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null; transferInfo: string | null }
 
 const STATUS: Record<Status, { label: string; tone: 'amber' | 'blue' | 'green' | 'brand' | 'slate' | 'red' }> = {
-  NEW: { label: 'Nuevo', tone: 'amber' }, ACCEPTED: { label: 'En preparación', tone: 'blue' }, READY: { label: 'Listo', tone: 'green' },
+  NEW: { label: 'Por aceptar', tone: 'amber' }, ACCEPTED: { label: 'En preparación', tone: 'blue' }, READY: { label: 'Listo', tone: 'green' },
   DISPATCHED: { label: 'En camino', tone: 'brand' }, COMPLETED: { label: 'Entregado', tone: 'slate' }, REJECTED: { label: 'Rechazado', tone: 'red' }, CANCELLED: { label: 'Cancelado', tone: 'red' },
 };
 
@@ -75,13 +77,14 @@ function ActiveOrders() {
 
   const opts = { invalidate: [['online'], ['kitchen']] };
   const move = useApiMutation((v: { id: string; status: string }) => api(`/online/orders/${v.id}/status`, { method: 'PATCH', json: { status: v.status } }), opts);
+  const confirmPay = useApiMutation((id: string) => api(`/online/orders/${id}/payment`, { method: 'POST', json: {} }), { invalidate: [['online']], success: 'Pago confirmado' });
   const pay = useApiMutation((v: { id: string; p: PaymentPayload }) => api(`/online/orders/${v.id}/pay`, { method: 'POST', json: v.p }), { invalidate: [['online'], ['cash'], ['sales']], success: 'Pedido cobrado' });
 
   return (
     <div className="space-y-4">
       {settings.data && !settings.data.onlineAccepting && <Alert>La tienda en línea está pausada. Actívala en “Configuración y enlace”.</Alert>}
       {cash.data && !cash.data.session && <Alert>La caja está cerrada: los clientes ven la tienda como cerrada y no pueden pedir.</Alert>}
-      {orders.data?.length === 0 && <EmptyState>No hay pedidos en curso. Los nuevos aparecen aquí con un sonido.</EmptyState>}
+      {orders.data?.length === 0 && <EmptyState>No hay pedidos en curso. Los nuevos aparecen aquí con un sonido y pasan a cocina cuando los aceptas.</EmptyState>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {orders.data?.map((o) => (
           <Card key={o.id} className={clsx('space-y-3', o.status === 'NEW' && 'border-amber-400 ring-2 ring-amber-200')}>
@@ -111,17 +114,20 @@ function ActiveOrders() {
             </ul>
             <div className="flex items-baseline justify-between border-t pt-2">
               <span className="text-sm text-slate-600">
-                {PAYMENT_LABELS[o.paymentMethod]}
-                {o.payWith ? ` · paga con ${formatCOP(o.payWith)} (cambio ${formatCOP(o.payWith - o.total)})` : ''}
+                {PAYMENT_LABELS[o.paymentMethod]} ·{' '}
+                {o.paymentStatus === 'PAID' ? <span className="font-semibold text-emerald-700">Pago recibido</span> : <span className="font-semibold text-amber-700">Pago pendiente</span>}
               </span>
               <span className="text-xl font-bold tabular-nums">{formatCOP(o.total)}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {o.status === 'NEW' && (
                 <>
-                  <Button className="flex-1" onClick={() => move.mutate({ id: o.id, status: 'ACCEPTED' })}>Aceptar</Button>
+                  <Button className="flex-1" onClick={() => move.mutate({ id: o.id, status: 'ACCEPTED' })}>Aceptar y enviar a cocina</Button>
                   <Button variant="secondary" onClick={() => setClosing({ order: o, kind: 'reject' })}>Rechazar</Button>
                 </>
+              )}
+              {o.paymentStatus !== 'PAID' && o.status !== 'NEW' && (
+                <Button variant="secondary" className="flex-1" onClick={() => confirmPay.mutate(o.id)}>Confirmar pago recibido</Button>
               )}
               {o.status === 'ACCEPTED' && <Button className="flex-1" onClick={() => move.mutate({ id: o.id, status: 'READY' })}>Marcar listo</Button>}
               {o.type === 'DELIVERY' && (o.status === 'ACCEPTED' || o.status === 'READY') && (
@@ -136,7 +142,7 @@ function ActiveOrders() {
         ))}
       </div>
       {paying && (
-        <CheckoutModal subtotal={paying.total} tipsEnabled={false} loading={pay.isPending} defaultMethod={paying.paymentMethod} defaultReceived={paying.payWith ?? 0}
+        <CheckoutModal subtotal={paying.total} tipsEnabled={false} loading={pay.isPending} defaultMethod={paying.paymentMethod}
           onClose={() => setPaying(null)} onConfirm={(p) => pay.mutate({ id: paying.id, p }, { onSuccess: () => setPaying(null) })} />
       )}
       {closing && <CloseModal order={closing.order} kind={closing.kind} onClose={() => setClosing(null)} />}
@@ -195,7 +201,7 @@ function SettingsTab() {
   const url = data ? `${window.location.origin}/pedir/${data.slug}` : '';
   useEffect(() => { if (url) QRCode.toDataURL(url, { width: 360, margin: 1 }).then(setQr).catch(() => setQr('')); }, [url]);
   const save = useApiMutation(
-    () => api('/online/settings', { method: 'PUT', json: { onlineAccepting: form!.onlineAccepting, allowDelivery: form!.allowDelivery, allowPickup: form!.allowPickup, deliveryFee: form!.deliveryFee, minOrder: form!.minOrder, onlineMessage: form!.onlineMessage ?? undefined, whatsapp: form!.whatsapp ?? undefined } }),
+    () => api('/online/settings', { method: 'PUT', json: { onlineAccepting: form!.onlineAccepting, allowDelivery: form!.allowDelivery, allowPickup: form!.allowPickup, deliveryFee: form!.deliveryFee, minOrder: form!.minOrder, onlineMessage: form!.onlineMessage ?? undefined, whatsapp: form!.whatsapp ?? undefined, transferInfo: form!.transferInfo ?? undefined } }),
     { invalidate: [['online']], success: 'Configuración guardada' },
   );
   if (!form) return null;
@@ -219,7 +225,7 @@ function SettingsTab() {
       </Card>
       <Card className="space-y-4">
         <p className="font-semibold">Configuración de esta sede</p>
-        <Checkbox label="Recibiendo pedidos" description="Si lo desactivas, la tienda se muestra cerrada. También se cierra cuando la caja está cerrada." checked={form.onlineAccepting} onChange={(e) => setForm({ ...form, onlineAccepting: e.target.checked })} />
+        <Checkbox label="Recibiendo pedidos" description="La tienda abre automáticamente cuando la caja de la sede está abierta y se muestra cerrada cuando la caja se cierra. Desactívalo para pausarla aunque la caja esté abierta." checked={form.onlineAccepting} onChange={(e) => setForm({ ...form, onlineAccepting: e.target.checked })} />
         <Checkbox label="Domicilios" checked={form.allowDelivery} onChange={(e) => setForm({ ...form, allowDelivery: e.target.checked })} />
         <Checkbox label="Recoger en tienda" checked={form.allowPickup} onChange={(e) => setForm({ ...form, allowPickup: e.target.checked })} />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -227,6 +233,9 @@ function SettingsTab() {
           <Field label="Pedido mínimo"><MoneyInput value={form.minOrder} onChange={(v) => setForm({ ...form, minOrder: v })} placeholder="Sin mínimo" /></Field>
         </div>
         <Field label="WhatsApp de contacto"><Input value={form.whatsapp ?? ''} inputMode="tel" placeholder="3001234567" onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
+        <Field label="Datos para transferencia (los ve el cliente al pagar)">
+          <Textarea value={form.transferInfo ?? ''} maxLength={500} placeholder={'Bancolombia ahorros 123-456789-00\nNequi 300 123 4567\nA nombre de Sunset Mango SAS'} onChange={(e) => setForm({ ...form, transferInfo: e.target.value })} />
+        </Field>
         <Field label="Mensaje para los clientes"><Textarea value={form.onlineMessage ?? ''} maxLength={300} placeholder="Ej. Domicilios de 11 a. m. a 9 p. m. en el norte de la ciudad" onChange={(e) => setForm({ ...form, onlineMessage: e.target.value })} /></Field>
         <div className="flex justify-end"><Button loading={save.isPending} onClick={() => save.mutate()}>Guardar</Button></div>
       </Card>

@@ -72,4 +72,13 @@ export class OnlineSettingsDto {
 
   @IsOptional() @IsString() @Matches(/^[\d\s+()-]{0,20}$/, { message: 'WhatsApp inválido' })
   whatsapp?: string;
+
+  /** Datos de transferencia que verá el cliente (banco, tipo y número de cuenta, Nequi…) */
+  @IsOptional() @IsString() @MaxLength(500)
+  transferInfo?: string;
+}
+
+export class ConfirmPaymentDto {
+  @IsOptional() @IsString() @MaxLength(80)
+  reference?: string;
 }

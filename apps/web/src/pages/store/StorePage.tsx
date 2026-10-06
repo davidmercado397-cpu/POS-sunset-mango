@@ -7,7 +7,6 @@ import { ProductPicker } from '../../components/pos/ProductPicker';
 import { toApiItems, type Menu, type PaymentMethod } from '../../components/pos/types';
 import { useCart } from '../../components/pos/useCart';
 import { Modal } from '../../components/Modal';
-import { MoneyInput } from '../../components/MoneyInput';
 import { toast } from '../../components/toast';
 import { Alert, Button, Field, Input, Textarea } from '../../components/ui';
 import { api } from '../../lib/api';
@@ -20,7 +19,8 @@ export interface StoreInfo {
   logoUrl: string | null;
   primaryColor: string;
   secondaryColor: string;
-  branches: { id: string; name: string; address: string | null; open: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; message: string | null; whatsapp: string | null }[];
+  branches: { id: string; name: string; address: string | null; open: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; message: string | null; whatsapp: string | null; transferInfo: string | null }[];
+  paymentMethods: PaymentMethod[];
 }
 
 const CUSTOMER_KEY = 'pos.store.customer';
@@ -67,7 +67,7 @@ export function StorePage() {
         </div>
         {branch && store.data.branches.length > 1 && <button className="text-sm font-semibold underline" onClick={() => setBranchId(null)}>Cambiar sede</button>}
       </header>
-      {!branch ? <BranchPicker store={store.data} onPick={setBranchId} /> : <StoreMenu slug={slug} branch={branch} />}
+      {!branch ? <BranchPicker store={store.data} onPick={setBranchId} /> : <StoreMenu slug={slug} branch={branch} paymentMethods={store.data.paymentMethods} />}
     </div>
   );
 }
@@ -91,7 +91,7 @@ function BranchPicker({ store, onPick }: { store: StoreInfo; onPick: (id: string
   );
 }
 
-function StoreMenu({ slug, branch }: { slug: string; branch: StoreInfo['branches'][number] }) {
+function StoreMenu({ slug, branch, paymentMethods }: { slug: string; branch: StoreInfo['branches'][number]; paymentMethods: PaymentMethod[] }) {
   const navigate = useNavigate();
   const data = useApi<Pick<Menu, 'categories' | 'products'>>(['store', slug, 'menu', branch.id], `/public/store/${slug}/menu?branchId=${branch.id}`);
   const cart = useCart();
@@ -100,7 +100,7 @@ function StoreMenu({ slug, branch }: { slug: string; branch: StoreInfo['branches
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {!branch.open && <div className="p-3"><Alert>En este momento no estamos recibiendo pedidos. Puedes ver el menú.</Alert></div>}
+      {!branch.open && <div className="p-3"><Alert>El restaurante está cerrado en este momento. Puedes ver el menú, pero no hacer pedidos.</Alert></div>}
       {branch.open && branch.message && <div className="p-3 pb-0"><Alert tone="info">{branch.message}</Alert></div>}
       <div className="min-h-0 flex-1 p-3">{menu && <ProductPicker menu={menu} onAdd={(p, o, q, n) => cart.add(p, o, q, n)} />}</div>
       {cart.count > 0 && (
@@ -116,7 +116,7 @@ function StoreMenu({ slug, branch }: { slug: string; branch: StoreInfo['branches
         <div className="h-[55dvh]"><CartView cart={cart} footer={<div className="flex justify-between border-t pt-3 font-bold"><span>Subtotal</span><span>{formatCOP(cart.total)}</span></div>} /></div>
       </Modal>
       {step === 'checkout' && (
-        <CheckoutForm slug={slug} branch={branch} subtotal={cart.total} items={toApiItems(cart.lines)} onBack={() => setStep('cart')}
+        <CheckoutForm slug={slug} branch={branch} paymentMethods={paymentMethods} subtotal={cart.total} items={toApiItems(cart.lines)} onBack={() => setStep('cart')}
           onPlaced={(code) => { cart.clear(); navigate(`/pedir/${slug}/pedido/${code}`); }} />
       )}
     </div>
@@ -124,19 +124,17 @@ function StoreMenu({ slug, branch }: { slug: string; branch: StoreInfo['branches
 }
 
 const PAY_OPTIONS: { value: PaymentMethod; label: string; hint: string }[] = [
-  { value: 'CASH', label: 'Efectivo', hint: 'Pagas al recibir' },
-  { value: 'TRANSFER', label: 'Transferencia', hint: 'Te enviamos los datos' },
-  { value: 'QR_BOLD', label: 'Datáfono / QR Bold', hint: 'Pagas con tarjeta o QR al recibir' },
+  { value: 'TRANSFER', label: 'Transferencia', hint: 'Transfiere y envía el comprobante por WhatsApp' },
+  { value: 'QR_BOLD', label: 'Pago en línea con Bold', hint: 'Tarjeta, PSE o Nequi' },
 ];
 
-function CheckoutForm({ slug, branch, subtotal, items, onBack, onPlaced }: {
-  slug: string; branch: StoreInfo['branches'][number]; subtotal: number; items: ReturnType<typeof toApiItems>; onBack: () => void; onPlaced: (code: string) => void;
+function CheckoutForm({ slug, branch, paymentMethods, subtotal, items, onBack, onPlaced }: {
+  slug: string; branch: StoreInfo['branches'][number]; paymentMethods: PaymentMethod[]; subtotal: number; items: ReturnType<typeof toApiItems>; onBack: () => void; onPlaced: (code: string) => void;
 }) {
   const saved = loadCustomer();
   const [type, setType] = useState<'DELIVERY' | 'PICKUP'>(branch.allowDelivery ? 'DELIVERY' : 'PICKUP');
   const [form, setForm] = useState({ customerName: saved.customerName ?? '', phone: saved.phone ?? '', address: saved.address ?? '', addressNotes: saved.addressNotes ?? '', notes: '', website: '' });
-  const [payment, setPayment] = useState<PaymentMethod>('CASH');
-  const [payWith, setPayWith] = useState(0);
+  const [payment, setPayment] = useState<PaymentMethod>(paymentMethods[0] ?? 'TRANSFER');
   const [sending, setSending] = useState(false);
   const fee = type === 'DELIVERY' ? branch.deliveryFee : 0;
   const total = subtotal + fee;
@@ -155,7 +153,7 @@ function CheckoutForm({ slug, branch, subtotal, items, onBack, onPlaced }: {
           address: type === 'DELIVERY' ? form.address : undefined,
           addressNotes: type === 'DELIVERY' ? form.addressNotes || undefined : undefined,
           notes: form.notes || undefined, website: form.website || undefined,
-          paymentMethod: payment, payWith: payment === 'CASH' && payWith ? payWith : undefined, items,
+          paymentMethod: payment, items,
         },
       });
       saveCustomer({ customerName: form.customerName, phone: form.phone, address: form.address, addressNotes: form.addressNotes });
@@ -194,15 +192,18 @@ function CheckoutForm({ slug, branch, subtotal, items, onBack, onPlaced }: {
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700">¿Cómo vas a pagar?</p>
           <div className="space-y-2">
-            {PAY_OPTIONS.map((o) => (
+            {PAY_OPTIONS.filter((o) => paymentMethods.includes(o.value)).map((o) => (
               <label key={o.value} className={clsx('flex cursor-pointer items-center gap-3 rounded-xl border p-3', payment === o.value ? 'border-brand bg-brand/5' : 'border-slate-200')}>
                 <input type="radio" name="pay" className="size-5 accent-[var(--brand)]" checked={payment === o.value} onChange={() => setPayment(o.value)} />
                 <span><span className="block font-semibold">{o.label}</span><span className="text-xs text-slate-500">{o.hint}</span></span>
               </label>
             ))}
           </div>
-          {payment === 'CASH' && (
-            <div className="mt-3"><Field label="¿Con cuánto pagas? (para llevarte el cambio)"><MoneyInput value={payWith} onChange={setPayWith} placeholder="Opcional" /></Field></div>
+          {payment === 'TRANSFER' && branch.transferInfo && (
+            <div className="mt-3 rounded-xl bg-sky-50 p-3 text-sm whitespace-pre-line text-sky-900">
+              <p className="font-semibold">Datos para transferir</p>
+              {branch.transferInfo}
+            </div>
           )}
         </div>
         <Field label="Comentarios (opcional)"><Textarea value={form.notes} maxLength={300} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>

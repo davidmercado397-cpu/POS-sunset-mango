@@ -53,6 +53,13 @@ describe('Super Admin y administración del negocio', () => {
 
     const caja = client(app, await loginAs(app, 'caja1'), a.branchId);
     await caja.get('/admin/users').expect(403);
+    // Ingreso con correo: el mismo nombre en dominios distintos no choca.
+    await a.admin.post('/admin/users', { fullName: 'C1', username: 'cajero1@negocio1.com', password: PASSWORD, roleId: cajero.id, branchIds: [a.branchId] }).expect(201);
+    const rolesB = await b.admin.get('/admin/roles').expect(200);
+    const cajeroB = rolesB.body.roles.find((r: { name: string }) => r.name === 'Cajero');
+    await b.admin.post('/admin/users', { fullName: 'C1', username: 'cajero1@negocio2.com', password: PASSWORD, roleId: cajeroB.id, branchIds: [b.branchId] }).expect(201);
+    await loginAs(app, 'Cajero1@Negocio2.com');
+    await a.admin.post('/admin/users', { fullName: 'X', username: 'no valido@x', password: PASSWORD, roleId: cajero.id, branchIds: [a.branchId] }).expect(400);
     await a.admin.get('/platform/tenants').expect(403);
     // Un admin no puede operar sobre la sede de otro negocio.
     await client(app, b.token, a.branchId).put(`/admin/branches/${a.branchId}`, { name: 'Hack' }).expect(404);

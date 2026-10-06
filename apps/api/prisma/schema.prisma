@@ -12,19 +12,24 @@ datasource db {
 
 /// Negocio (cliente del SaaS)
 model Tenant {
-  id             String   @id @default(uuid())
-  name           String
-  slug           String   @unique
-  isActive       Boolean  @default(true)
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  isActive         Boolean  @default(true)
   /// Módulos que el Super Admin habilitó para este negocio (ver src/common/modules.ts)
-  enabledModules String[] @default([])
+  enabledModules   String[] @default([])
   // Marca
-  brandName      String?
-  logoUrl        String?
-  primaryColor   String   @default("#f97316")
-  secondaryColor String   @default("#7c2d12")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  brandName        String?
+  logoUrl          String?
+  primaryColor     String   @default("#f97316")
+  secondaryColor   String   @default("#7c2d12")
+  // Pasarela Bold (integración pendiente de activar)
+  boldEnabled      Boolean  @default(false)
+  boldIdentityKey  String?
+  /// Llave secreta cifrada (AES-256-GCM); nunca se devuelve al navegador
+  boldSecretKeyEnc String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   branches          Branch[]
   users             User[]
@@ -56,6 +61,8 @@ model Branch {
   minOrder        Int      @default(0)
   onlineMessage   String?
   whatsapp        String?
+  /// Datos para que el cliente pague por transferencia (banco, cuenta, Nequi…)
+  transferInfo    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -305,6 +312,8 @@ model CashMovement {
   branchId    String
   sessionId   String
   type        CashMovementType
+  /// Gastos: efectivo de la caja o transferencia. Salidas y entradas siempre son en efectivo.
+  method      PaymentMethod    @default(CASH)
   amount      Int
   categoryId  String?
   description String?
@@ -625,6 +634,12 @@ enum OnlineOrderStatus {
   CANCELLED
 }
 
+enum OnlinePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
 enum OnlineOrderType {
   DELIVERY
   PICKUP
@@ -632,33 +647,36 @@ enum OnlineOrderType {
 
 /// Pedido hecho por un cliente desde el enlace público (sin usuario)
 model OnlineOrder {
-  id            String            @id @default(uuid())
-  tenantId      String
-  branchId      String
+  id               String              @id @default(uuid())
+  tenantId         String
+  branchId         String
   /// Código corto para seguimiento público
-  code          String            @unique
-  status        OnlineOrderStatus @default(NEW)
-  type          OnlineOrderType
-  customerName  String
-  phone         String
-  address       String?
-  addressNotes  String?
-  notes         String?
+  code             String              @unique
+  status           OnlineOrderStatus   @default(NEW)
+  type             OnlineOrderType
+  customerName     String
+  phone            String
+  address          String?
+  addressNotes     String?
+  notes            String?
   /// Método con el que el cliente dice que pagará
-  paymentMethod PaymentMethod
+  paymentMethod    PaymentMethod
   /// Efectivo: con cuánto paga (para llevar cambio)
-  payWith       Int?
+  payWith          Int?
+  paymentStatus    OnlinePaymentStatus @default(PENDING)
+  /// Referencia del pago (transferencia o transacción de la pasarela)
+  paymentReference String?
   /// Copia de los ítems con precios calculados en el servidor
-  items         Json
-  subtotal      Int
-  deliveryFee   Int               @default(0)
-  total         Int
-  rejectReason  String?
+  items            Json
+  subtotal         Int
+  deliveryFee      Int                 @default(0)
+  total            Int
+  rejectReason     String?
   /// Venta generada al cobrar
-  saleId        String?           @unique
-  ip            String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  saleId           String?             @unique
+  ip               String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
   kitchenTickets KitchenTicket[]

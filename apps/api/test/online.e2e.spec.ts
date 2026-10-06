@@ -20,20 +20,21 @@ describe('Pedidos en línea', () => {
     ctx = await setupTenant(app, ['online', 'kitchen', 'inventory'], 'tienda');
     carne = (await prisma.inventoryItem.create({ data: { tenantId: ctx.tenantId, name: 'Carne', unit: 'g' } })).id;
     productId = (await ctx.admin.post('/catalog/products', { name: 'Hamburguesa', price: 20000, recipe: [{ inventoryItemId: carne, quantity: 150 }] }).expect(201)).body.id;
-    await ctx.admin.put('/online/settings', { onlineAccepting: true, allowDelivery: true, allowPickup: true, deliveryFee: 5000, minOrder: 15000, whatsapp: '300 123 4567' }).expect(200);
+    await ctx.admin.put('/online/settings', { onlineAccepting: true, allowDelivery: true, allowPickup: true, deliveryFee: 5000, minOrder: 15000, whatsapp: '300 123 4567', transferInfo: 'Nequi 3001234567' }).expect(200);
   });
 
   const order = (overrides: object = {}) =>
     pub().post('/api/public/store/tienda/orders').send({
       branchId: ctx.branchId, type: 'DELIVERY', customerName: 'Laura Gómez', phone: '300 555 1234',
-      address: 'Calle 45 # 12-30 apto 501', paymentMethod: 'CASH', payWith: 50000,
+      address: 'Calle 45 # 12-30 apto 501', paymentMethod: 'TRANSFER',
       items: [{ productId, quantity: 2, notes: 'sin cebolla' }],
       ...overrides,
     });
 
   it('flujo completo: tienda pública, pedido sin usuario, cocina, seguimiento y cobro en caja', async () => {
     let store = await pub().get('/api/public/store/tienda').expect(200);
-    expect(store.body.branches[0]).toMatchObject({ open: false, deliveryFee: 5000 }); // caja cerrada = tienda cerrada
+    expect(store.body.branches[0]).toMatchObject({ open: false, deliveryFee: 5000, transferInfo: 'Nequi 3001234567' }); // caja cerrada = tienda cerrada
+    expect(store.body.paymentMethods).toEqual(['TRANSFER']); // Bold queda pendiente de integrar
     await order().expect(400);
 
     await ctx.admin.post('/cash/open', { openingAmount: 0 }).expect(201);
@@ -48,8 +49,8 @@ describe('Pedidos en línea', () => {
     const code = placed.body.code;
     expect(code).toMatch(/^[A-Z2-9]{6}$/);
 
-    const tickets = await ctx.admin.get('/kitchen/tickets').expect(200);
-    expect(tickets.body[0].label).toContain(code);
+    // Llega al panel, pero no a cocina hasta que alguien lo acepte.
+    expect((await ctx.admin.get('/kitchen/tickets').expect(200)).body).toHaveLength(0);
 
     const track = await pub().get(`/api/public/orders/${code.toLowerCase()}`).expect(200);
     expect(track.body).toMatchObject({ status: 'NEW', total: 45000, customerName: 'Laura' });
@@ -58,18 +59,27 @@ describe('Pedidos en línea', () => {
 
     const list = await ctx.admin.get('/online/orders').expect(200);
     const id = list.body[0].id;
+    await ctx.admin.patch(`/online/orders/${id}/status`, { status: 'READY' }).expect(400); // primero se acepta
     await ctx.admin.patch(`/online/orders/${id}/status`, { status: 'ACCEPTED' }).expect(200);
+    await ctx.admin.patch(`/online/orders/${id}/status`, { status: 'ACCEPTED' }).expect(400);
+    const tickets = await ctx.admin.get('/kitchen/tickets').expect(200);
+    expect(tickets.body).toHaveLength(1);
+    expect(tickets.body[0].label).toContain(code);
+    expect(tickets.body[0].items[0]).toMatchObject({ name: 'Hamburguesa', quantity: 2, notes: 'sin cebolla' });
+
+    await ctx.admin.post(`/online/orders/${id}/payment`, { reference: 'TRF-998' }).expect(201);
+    expect((await pub().get(`/api/public/orders/${code}`)).body.paymentStatus).toBe('PAID');
     await ctx.admin.patch(`/online/orders/${id}/status`, { status: 'DISPATCHED' }).expect(200);
 
-    await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'CASH', amount: 40000 }] }).expect(400);
-    const sale = await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'CASH', amount: 45000, received: 50000 }] }).expect(201);
+    await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'TRANSFER', amount: 40000 }] }).expect(400);
+    const sale = await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'TRANSFER', amount: 45000, reference: 'TRF-998' }] }).expect(201);
     expect(sale.body.items.map((i: { productName: string; lineTotal: number }) => [i.productName, i.lineTotal])).toEqual([['Hamburguesa', 40000], ['Domicilio', 5000]]);
     expect(Number((await prisma.stock.findFirst({ where: { itemId: carne } }))!.quantity)).toBe(-300);
     expect((await pub().get(`/api/public/orders/${code}`)).body.status).toBe('COMPLETED');
-    await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'CASH', amount: 45000 }] }).expect(400);
+    await ctx.admin.post(`/online/orders/${id}/pay`, { payments: [{ method: 'TRANSFER', amount: 45000 }] }).expect(400);
 
     const current = await ctx.admin.get('/cash/current').expect(200);
-    expect(current.body.summary.expected.CASH).toBe(45000);
+    expect(current.body.summary.expected.TRANSFER).toBe(45000);
   });
 
   it('valida reglas de la tienda y protege contra abusos', async () => {
@@ -77,7 +87,8 @@ describe('Pedidos en línea', () => {
     await order({ items: [{ productId, quantity: 1 }] }).expect(201); // 20.000 ≥ mínimo
     await order({ address: '' }).expect(400);
     await order({ website: 'http://spam' }).expect(400); // trampa para bots
-    await order({ payWith: 1000 }).expect(400);
+    await order({ paymentMethod: 'CASH' }).expect(400); // en línea solo transferencia (o Bold cuando se active)
+    await order({ paymentMethod: 'QR_BOLD' }).expect(400);
     await order({ phone: 'abc' }).expect(400);
     await order().expect(201);
     await order().expect(201);
@@ -94,6 +105,14 @@ describe('Pedidos en línea', () => {
     await ctx.admin.post(`/online/orders/${id}/reject`, { reason: 'Sin existencias' }).expect(201);
     const track = await pub().get(`/api/public/orders/${code}`).expect(200);
     expect(track.body).toMatchObject({ status: 'REJECTED', rejectReason: 'Sin existencias' });
+    expect(await prisma.kitchenTicket.count()).toBe(0); // nunca llegó a cocina
+
+    // Un pedido aceptado y luego cancelado cancela su comanda.
+    await order({ phone: '310 000 1111' }).expect(201);
+    const second = (await ctx.admin.get('/online/orders').expect(200)).body[0].id;
+    await ctx.admin.patch(`/online/orders/${second}/status`, { status: 'ACCEPTED' }).expect(200);
+    await ctx.admin.post(`/online/orders/${second}/reject`, { reason: 'tarde' }).expect(400); // ya aceptado: se cancela
+    await ctx.admin.post(`/online/orders/${second}/cancel`, { reason: 'Cliente canceló' }).expect(201);
     expect((await prisma.kitchenTicket.findFirst())!.status).toBe('CANCELLED');
 
     await setupTenant(app, ['kitchen'], 'sin-online');

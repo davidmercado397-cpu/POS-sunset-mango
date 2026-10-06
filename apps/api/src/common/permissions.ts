@@ -70,6 +70,11 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
     permissions: ['catalog.view', 'pos.sell', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage'],
   },
   {
+    name: 'Mesero',
+    description: 'Toma pedidos en las mesas (si el negocio usa mesas)',
+    permissions: ['catalog.view', 'tables.manage'],
+  },
+  {
     name: 'Cocina',
     description: 'Solo pantalla de cocina',
     permissions: ['kitchen.view'],

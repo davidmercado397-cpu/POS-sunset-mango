@@ -11,6 +11,7 @@ export interface CashSummary {
   sales: ByMethod;
   tips: ByMethod;
   expenses: number;
+  expensesTransfer?: number;
   withdrawals: number;
   deposits: number;
   expected: ByMethod;
@@ -21,6 +22,7 @@ export interface CashSummary {
 export interface CashMovement {
   id: string;
   type: 'EXPENSE' | 'WITHDRAWAL' | 'DEPOSIT';
+  method?: 'CASH' | 'TRANSFER';
   amount: number;
   description: string | null;
   createdAt: string;

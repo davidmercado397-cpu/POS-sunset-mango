@@ -83,7 +83,6 @@ export class SalesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('itemId', ParseUUIDPipe) itemId: string,
   ) {
-    this.sales.assertCanRemoveItems(user);
     return this.sales.removeItem(user, branch, id, itemId);
   }
 

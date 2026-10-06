@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentMethod, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { CashService } from '../cash/cash.service';
@@ -352,12 +352,6 @@ export class SalesService {
     });
     this.kitchen.notify(branch.id);
     return this.detail(user, branch, saleId);
-  }
-
-  assertCanRemoveItems(user: AuthUser) {
-    if (!user.permissions.includes('sales.void')) {
-      throw new ForbiddenException('Solo el administrador de la sede puede quitar productos ya enviados');
-    }
   }
 
   // ───────── Internos ─────────

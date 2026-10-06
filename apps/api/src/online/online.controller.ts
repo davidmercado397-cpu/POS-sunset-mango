@@ -7,7 +7,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { PayDto } from '../sales/sales.dto';
-import { OnlineSettingsDto, OnlineStatusDto, PublicOrderDto, ReasonDto } from './online.dto';
+import { ConfirmPaymentDto, OnlineSettingsDto, OnlineStatusDto, PublicOrderDto, ReasonDto } from './online.dto';
 import { OnlineService } from './online.service';
 
 /** Tienda pública: no requiere usuario. */
@@ -56,6 +56,11 @@ export class OnlineController {
   @Patch('orders/:id/status')
   status(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('id', ParseUUIDPipe) id: string, @Body() dto: OnlineStatusDto) {
     return this.online.setStatus(user, branch, id, dto.status);
+  }
+
+  @Post('orders/:id/payment')
+  confirmPayment(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmPaymentDto) {
+    return this.online.confirmPayment(user, branch, id, dto.reference);
   }
 
   @Post('orders/:id/reject')

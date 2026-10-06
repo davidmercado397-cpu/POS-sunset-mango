@@ -18,9 +18,10 @@ interface Tracking {
   deliveryFee: number;
   total: number;
   paymentMethod: string;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED';
   rejectReason: string | null;
   createdAt: string;
-  branch: { name: string; address: string | null; whatsapp: string | null };
+  branch: { name: string; address: string | null; whatsapp: string | null; transferInfo: string | null };
 }
 
 /** Seguimiento público del pedido por su código. */
@@ -37,7 +38,7 @@ export function TrackPage() {
     : [['NEW', 'Recibido'], ['ACCEPTED', 'En preparación'], ['READY', 'Listo para recoger'], ['COMPLETED', 'Entregado']];
   const current = steps.findIndex(([s]) => s === data.status);
   const closed = data.status === 'REJECTED' || data.status === 'CANCELLED';
-  const wa = data.branch.whatsapp ? `https://wa.me/${data.branch.whatsapp.length === 10 ? `57${data.branch.whatsapp}` : data.branch.whatsapp}?text=${encodeURIComponent(`Hola, quiero consultar mi pedido ${data.code}`)}` : null;
+  const wa = data.branch.whatsapp ? `https://wa.me/${data.branch.whatsapp.length === 10 ? `57${data.branch.whatsapp}` : data.branch.whatsapp}?text=${encodeURIComponent(`Hola, mi pedido es ${data.code}`)}` : null;
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4">
@@ -75,8 +76,18 @@ export function TrackPage() {
         ))}
         {data.deliveryFee > 0 && <div className="flex justify-between"><span>Domicilio</span><span className="tabular-nums">{formatCOP(data.deliveryFee)}</span></div>}
         <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="tabular-nums">{formatCOP(data.total)}</span></div>
-        <p className="text-slate-500">Pago: {PAYMENT_LABELS[data.paymentMethod]}</p>
+        <p className="text-slate-500">
+          Pago: {PAYMENT_LABELS[data.paymentMethod]} ·{' '}
+          {data.paymentStatus === 'PAID' ? <span className="font-semibold text-emerald-700">Pago confirmado</span> : 'Pendiente de confirmar'}
+        </p>
       </Card>
+      {data.paymentMethod === 'TRANSFER' && data.paymentStatus !== 'PAID' && !closed && data.branch.transferInfo && (
+        <Card className="space-y-1 bg-sky-50 text-sm text-sky-900">
+          <p className="font-semibold">Datos para transferir {formatCOP(data.total)}</p>
+          <p className="whitespace-pre-line">{data.branch.transferInfo}</p>
+          <p className="text-xs">Envía el comprobante por WhatsApp con el código {data.code}.</p>
+        </Card>
+      )}
       <p className="text-center text-xs text-slate-500">Esta página se actualiza sola. Guarda el código para consultar tu pedido.</p>
       {wa && (
         <a href={wa} target="_blank" rel="noreferrer">

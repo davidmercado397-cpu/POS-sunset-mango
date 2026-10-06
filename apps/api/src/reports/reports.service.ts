@@ -61,12 +61,12 @@ export class ReportsService {
         WHERE s."tenantId" = ${tenantId} AND s."branchId" IN (${bIds}) AND s.status = 'COMPLETED'
           AND s."completedAt" >= ${range.gte} AND s."completedAt" < ${range.lt}
         GROUP BY 1 ORDER BY total DESC`,
-      this.prisma.$queryRaw<{ type: string; category: string | null; total: bigint }[]>`
-        SELECT m.type, c.name AS category, SUM(m.amount)::bigint AS total
+      this.prisma.$queryRaw<{ type: string; method: string; category: string | null; total: bigint }[]>`
+        SELECT m.type, m.method::text AS method, c.name AS category, SUM(m.amount)::bigint AS total
         FROM "CashMovement" m LEFT JOIN "ExpenseCategory" c ON c.id = m."categoryId"
         WHERE m."tenantId" = ${tenantId} AND m."branchId" IN (${bIds}) AND m.type IN ('EXPENSE', 'WITHDRAWAL')
           AND m."createdAt" >= ${range.gte} AND m."createdAt" < ${range.lt}
-        GROUP BY 1, 2 ORDER BY total DESC`,
+        GROUP BY 1, 2, 3 ORDER BY total DESC`,
       this.prisma.purchase.aggregate({ where: { tenantId, branchId: { in: branchIds }, date: range }, _sum: { total: true }, _count: true }),
       // Costo de lo vendido = salidas por venta − devoluciones por anulación, al costo promedio del momento.
       this.prisma.$queryRaw<{ cost: Prisma.Decimal | null }[]>`
@@ -124,6 +124,7 @@ export class ReportsService {
         purchases: purchases._sum.total ?? 0,
         purchasesCount: purchases._count,
         expenses: expenses.filter((e) => e.type === 'EXPENSE').reduce((s, e) => s + Number(e.total), 0),
+        expensesTransfer: expenses.filter((e) => e.type === 'EXPENSE' && e.method === 'TRANSFER').reduce((s, e) => s + Number(e.total), 0),
         withdrawals: expenses.filter((e) => e.type === 'WITHDRAWAL').reduce((s, e) => s + Number(e.total), 0),
         cost: hasInventory ? cost : null,
         grossProfit: hasInventory ? salesTotal - cost : null,
@@ -136,7 +137,12 @@ export class ReportsService {
       topProducts: topProducts.map((p) => ({ name: p.name, category: p.category, quantity: Number(p.quantity), total: Number(p.total) })),
       byCategory: [...catMap.values()].sort((a, b) => b.total - a.total),
       byUser: byUser.map((u) => ({ name: u.name, total: Number(u.total), count: Number(u.count), tips: Number(u.tips) })),
-      expenses: expenses.map((e) => ({ type: e.type, category: e.category ?? (e.type === 'WITHDRAWAL' ? 'Salidas de efectivo' : 'Otros (texto libre)'), total: Number(e.total) })),
+      expenses: expenses.map((e) => ({
+        type: e.type,
+        method: e.method,
+        category: e.category ?? (e.type === 'WITHDRAWAL' ? 'Salidas de efectivo' : 'Otros (texto libre)'),
+        total: Number(e.total),
+      })),
       byBranch: byBranch.map((b) => ({ name: b.name, total: Number(b.total), count: Number(b.count) })),
     };
   }

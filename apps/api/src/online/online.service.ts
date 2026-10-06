@@ -6,6 +6,7 @@ import { AuthUser, BranchContext } from '../common/auth-user';
 import { effectiveModules } from '../common/modules';
 import { dayRange, tenantOf } from '../common/util';
 import { KitchenService } from '../kitchen/kitchen.service';
+import { BoldService } from '../payments/bold.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PayDto } from '../sales/sales.dto';
 import { SalesService } from '../sales/sales.service';
@@ -22,6 +23,7 @@ export class OnlineService {
     private readonly sales: SalesService,
     private readonly kitchen: KitchenService,
     private readonly audit: AuditService,
+    private readonly bold: BoldService,
   ) {}
 
   // ───────── Público (sin usuario) ─────────
@@ -59,8 +61,11 @@ export class OnlineService {
           minOrder: b.minOrder,
           message: b.onlineMessage,
           whatsapp: b.whatsapp,
+          transferInfo: b.transferInfo,
         })),
       ),
+      // Métodos de pago disponibles para el cliente. Bold se habilita cuando la integración esté activa.
+      paymentMethods: this.bold.isReady(tenant) ? ['TRANSFER', 'QR_BOLD'] : ['TRANSFER'],
     };
   }
 
@@ -82,6 +87,8 @@ export class OnlineService {
     if (dto.type === 'DELIVERY' && !branch.allowDelivery) throw new BadRequestException('Esta sede no tiene domicilios');
     if (dto.type === 'PICKUP' && !branch.allowPickup) throw new BadRequestException('Esta sede no tiene pedidos para recoger');
     if (dto.type === 'DELIVERY' && (dto.address?.trim().length ?? 0) < 5) throw new BadRequestException('Escribe la dirección de entrega');
+    const allowedPayments = this.bold.isReady(tenant) ? ['TRANSFER', 'QR_BOLD'] : ['TRANSFER'];
+    if (!allowedPayments.includes(dto.paymentMethod)) throw new BadRequestException('Método de pago no disponible');
 
     // Evita abusos: máximo 3 pedidos activos por teléfono en la sede.
     const phone = dto.phone.replace(/\D/g, '');
@@ -95,7 +102,6 @@ export class OnlineService {
       if (subtotal < branch.minOrder) throw new BadRequestException(`El pedido mínimo es de $${branch.minOrder.toLocaleString('es-CO')}`);
       const deliveryFee = dto.type === 'DELIVERY' ? branch.deliveryFee : 0;
       const total = subtotal + deliveryFee;
-      if (dto.paymentMethod === 'CASH' && dto.payWith && dto.payWith < total) throw new BadRequestException('El valor con el que pagas es menor al total');
 
       const order = await tx.onlineOrder.create({
         data: {
@@ -109,7 +115,7 @@ export class OnlineService {
           addressNotes: dto.type === 'DELIVERY' ? dto.addressNotes?.trim() || null : null,
           notes: dto.notes?.trim() || null,
           paymentMethod: dto.paymentMethod,
-          payWith: dto.paymentMethod === 'CASH' ? dto.payWith ?? null : null,
+          payWith: null,
           items: lines.map(({ consumption: _c, sendToKitchen: _k, ...l }) => l) as unknown as Prisma.InputJsonValue,
           subtotal,
           deliveryFee,
@@ -117,18 +123,6 @@ export class OnlineService {
           ip,
         },
       });
-      if (ctx.modules.includes('kitchen')) {
-        const items = lines.filter((l) => l.sendToKitchen).map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: l.modifiers.map((m) => m.optionName), notes: l.notes }));
-        if (items.length) {
-          await this.kitchen.createTicket(tx, {
-            tenantId: tenant.id,
-            branchId: branch.id,
-            onlineOrderId: order.id,
-            label: `${dto.type === 'DELIVERY' ? '🛵 Domicilio' : '🛍️ Para recoger'} · ${order.customerName} · ${order.code}`,
-            items,
-          });
-        }
-      }
       return order;
     });
     this.kitchen.notify(branch.id);
@@ -148,10 +142,11 @@ export class OnlineService {
       deliveryFee: order.deliveryFee,
       total: order.total,
       paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
       rejectReason: order.rejectReason,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
-      branch: { name: order.branch.name, address: order.branch.address, whatsapp: order.branch.whatsapp },
+      branch: { name: order.branch.name, address: order.branch.address, whatsapp: order.branch.whatsapp, transferInfo: order.branch.transferInfo },
     };
   }
 
@@ -174,12 +169,47 @@ export class OnlineService {
 
   async setStatus(user: AuthUser, branch: BranchContext, id: string, status: 'ACCEPTED' | 'READY' | 'DISPATCHED') {
     const order = await this.find(branch, id);
-    const allowed: Record<string, OnlineOrder['status'][]> = { ACCEPTED: ['NEW'], READY: ['NEW', 'ACCEPTED'], DISPATCHED: ['ACCEPTED', 'READY'] };
+    // Un pedido nuevo debe aceptarse primero; solo entonces pasa a cocina.
+    const allowed: Record<string, OnlineOrder['status'][]> = { ACCEPTED: ['NEW'], READY: ['ACCEPTED'], DISPATCHED: ['ACCEPTED', 'READY'] };
     if (!allowed[status].includes(order.status)) throw new BadRequestException('Cambio de estado no permitido');
     if (status === 'DISPATCHED' && order.type !== 'DELIVERY') throw new BadRequestException('Solo los domicilios se despachan');
-    const updated = await this.prisma.onlineOrder.update({ where: { id }, data: { status } });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.onlineOrder.updateMany({ where: { id, status: order.status }, data: { status } });
+      if (!count) throw new BadRequestException('El pedido cambió de estado; actualiza la pantalla');
+      if (status === 'ACCEPTED' && branch.modules.includes('kitchen')) await this.sendToKitchen(tx, order);
+      return tx.onlineOrder.findUniqueOrThrow({ where: { id } });
+    });
     this.kitchen.notify(branch.id);
     return updated;
+  }
+
+  private async sendToKitchen(tx: Prisma.TransactionClient, order: OnlineOrder) {
+    const lines = order.items as unknown as { productId: string; productName: string; quantity: number; notes: string | null; modifiers: { optionName: string }[] }[];
+    const products = await tx.product.findMany({ where: { id: { in: lines.map((l) => l.productId) } }, select: { id: true, sendToKitchen: true } });
+    const kitchenIds = new Set(products.filter((p) => p.sendToKitchen).map((p) => p.id));
+    const items = lines
+      .filter((l) => kitchenIds.has(l.productId))
+      .map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: l.modifiers.map((m) => m.optionName), notes: l.notes }));
+    if (!items.length) return;
+    await this.kitchen.createTicket(tx, {
+      tenantId: order.tenantId,
+      branchId: order.branchId,
+      onlineOrderId: order.id,
+      label: [`${order.type === 'DELIVERY' ? '🛵 Domicilio' : '🛍️ Para recoger'} · ${order.customerName} · ${order.code}`, order.notes && `Nota: ${order.notes}`]
+        .filter(Boolean)
+        .join(' · '),
+      items,
+    });
+  }
+
+  /** Marca el pago (transferencia) como recibido antes de despachar. */
+  async confirmPayment(user: AuthUser, branch: BranchContext, id: string, reference?: string) {
+    const order = await this.find(branch, id);
+    if (!ACTIVE.includes(order.status)) throw new BadRequestException('El pedido ya fue cerrado');
+    await this.prisma.onlineOrder.update({ where: { id }, data: { paymentStatus: 'PAID', paymentReference: reference?.trim() || order.paymentReference } });
+    await this.audit.log({ tenantId: order.tenantId, branchId: branch.id, userId: user.id, action: 'online.payment_confirmed', entity: 'OnlineOrder', entityId: id, data: { code: order.code, reference } });
+    this.kitchen.notify(branch.id);
+    return { id };
   }
 
   async close(user: AuthUser, branch: BranchContext, id: string, status: 'REJECTED' | 'CANCELLED', reason: string) {
@@ -211,6 +241,7 @@ export class OnlineService {
       minOrder: b.minOrder,
       onlineMessage: b.onlineMessage,
       whatsapp: b.whatsapp,
+      transferInfo: b.transferInfo,
     };
   }
 
@@ -218,7 +249,12 @@ export class OnlineService {
     if (!dto.allowDelivery && !dto.allowPickup) throw new BadRequestException('Activa al menos domicilio o recoger en tienda');
     await this.prisma.branch.update({
       where: { id: branch.id },
-      data: { ...dto, onlineMessage: dto.onlineMessage?.trim() || null, whatsapp: dto.whatsapp?.replace(/\D/g, '') || null },
+      data: {
+        ...dto,
+        onlineMessage: dto.onlineMessage?.trim() || null,
+        whatsapp: dto.whatsapp?.replace(/\D/g, '') || null,
+        transferInfo: dto.transferInfo?.trim() || null,
+      },
     });
     await this.audit.log({ tenantId: tenantOf(user), branchId: branch.id, userId: user.id, action: 'online.settings', data: { ...dto } });
     return this.settings(branch);

@@ -31,19 +31,20 @@ async function main() {
         ),
       );
       const centro = await tx.branch.create({
-        data: { tenantId: tenant.id, name: 'Sede Centro', address: 'Calle 10 # 5-20', activeModules: modules, deliveryFee: 4000, minOrder: 15000, whatsapp: '3001234567', onlineMessage: 'Domicilios de 11 a. m. a 9 p. m.' },
+        data: { tenantId: tenant.id, name: 'Sede Centro', address: 'Calle 10 # 5-20', activeModules: modules, deliveryFee: 4000, minOrder: 15000, whatsapp: '3001234567', onlineMessage: 'Domicilios de 11 a. m. a 9 p. m.', transferInfo: 'Bancolombia ahorros 123-456789-00\nNequi 300 123 4567\nA nombre de Sunset Mango SAS' },
       });
       const norte = await tx.branch.create({ data: { tenantId: tenant.id, name: 'Sede Norte', activeModules: modules.filter((m) => m !== 'tables') } });
 
       const users = [
-        { username: 'demo-admin', fullName: 'Ana Administradora', role: 'Administrador', branches: [centro.id, norte.id] },
-        { username: 'demo-sede', fullName: 'Sergio Admin Sede', role: 'Administrador de sede', branches: [centro.id] },
-        { username: 'demo-cajero', fullName: 'Camila Cajera', role: 'Cajero', branches: [centro.id] },
-        { username: 'demo-cocina', fullName: 'Carlos Cocina', role: 'Cocina', branches: [centro.id] },
+        { username: 'admin@sunsetmango.com', fullName: 'Ana Administradora', role: 'Administrador', branches: [centro.id, norte.id] },
+        { username: 'sede@sunsetmango.com', fullName: 'Sergio Admin Sede', role: 'Administrador de sede', branches: [centro.id] },
+        { username: 'cajero@sunsetmango.com', fullName: 'Camila Cajera', role: 'Cajero', branches: [centro.id] },
+        { username: 'mesero@sunsetmango.com', fullName: 'Mateo Mesero', role: 'Mesero', branches: [centro.id] },
+        { username: 'cocina@sunsetmango.com', fullName: 'Carlos Cocina', role: 'Cocina', branches: [centro.id] },
       ];
       for (const u of users) {
         await tx.user.create({
-          data: { tenantId: tenant.id, username: u.username, fullName: u.fullName, roleId: roles[u.role].id, passwordHash: hash, branches: { create: u.branches.map((branchId) => ({ branchId })) } },
+          data: { tenantId: tenant.id, username: u.username, email: u.username, fullName: u.fullName, roleId: roles[u.role].id, passwordHash: hash, branches: { create: u.branches.map((branchId) => ({ branchId })) } },
         });
       }
       await tx.expenseCategory.createMany({
@@ -113,7 +114,7 @@ async function main() {
       ]);
       await product('Cheesecake de mango', 9000, desserts, 'Porción individual', [[mango, 40]]);
     });
-    console.log(`[demo] Negocio de demostración creado. Usuarios: demo-admin, demo-sede, demo-cajero, demo-cocina · contraseña: ${PASSWORD}`);
+    console.log(`[demo] Negocio de demostración creado. Usuarios: admin@, sede@, cajero@, mesero@ y cocina@sunsetmango.com · contraseña: ${PASSWORD}`);
   } finally {
     await prisma.$disconnect();
   }

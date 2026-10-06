@@ -100,6 +100,7 @@ function MovementsList({ movements }: { movements: CashMovement[] }) {
                 {m.type === 'DEPOSIT' ? <ArrowDownCircle className="size-4" /> : <ArrowUpCircle className="size-4" />}
                 {MOVEMENT_LABELS[m.type]}
               </span>
+              {m.method === 'TRANSFER' && <span className="ml-1 text-xs text-slate-500">(transferencia)</span>}
             </td>
             <td>{[m.category?.name, m.description].filter(Boolean).join(' · ')}</td>
             <td>{m.createdBy.fullName}</td>
@@ -144,11 +145,12 @@ function OpenCash({ denominations }: { denominations: number[] }) {
 function MovementModal({ onClose }: { onClose: () => void }) {
   const categories = useApi<{ id: string; name: string; isActive: boolean }[]>(['admin', 'expense-categories'], '/admin/expense-categories');
   const [type, setType] = useState<CashMovement['type']>('EXPENSE');
+  const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
   const [amount, setAmount] = useState(0);
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const save = useApiMutation(
-    () => api('/cash/movements', { method: 'POST', json: { type, amount, categoryId: type === 'EXPENSE' && categoryId ? categoryId : undefined, description: description || undefined } }),
+    () => api('/cash/movements', { method: 'POST', json: { type, method: type === 'EXPENSE' ? method : 'CASH', amount, categoryId: type === 'EXPENSE' && categoryId ? categoryId : undefined, description: description || undefined } }),
     { invalidate: [['cash']], success: 'Movimiento registrado' },
   );
   return (
@@ -164,6 +166,18 @@ function MovementModal({ onClose }: { onClose: () => void }) {
         </div>
         <Field label="Valor"><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
         {type === 'EXPENSE' && (
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">¿Cómo se pagó?</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['CASH', 'TRANSFER'] as const).map((m) => (
+                <button key={m} onClick={() => setMethod(m)} className={clsx('min-h-11 rounded-xl border text-sm font-semibold', method === m ? 'border-brand bg-brand/10' : 'border-slate-200')}>
+                  {m === 'CASH' ? 'Efectivo de la caja' : 'Transferencia'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {type === 'EXPENSE' && (
           <Field label="Categoría">
             <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">Otro (escribe la descripción)</option>
@@ -174,7 +188,7 @@ function MovementModal({ onClose }: { onClose: () => void }) {
         <Field label={type === 'EXPENSE' && !categoryId ? 'Descripción (obligatoria)' : 'Descripción'}>
           <Input value={description} maxLength={300} placeholder={type === 'EXPENSE' ? 'Ej. compra de hielo' : 'Ej. consignación al banco'} onChange={(e) => setDescription(e.target.value)} />
         </Field>
-        <p className="text-xs text-slate-500">Los gastos y salidas se descuentan del efectivo esperado en caja; las entradas lo aumentan.</p>
+        <p className="text-xs text-slate-500">Los gastos en efectivo y las salidas se descuentan del efectivo esperado; las entradas lo aumentan. Los gastos por transferencia solo se registran.</p>
       </div>
     </Modal>
   );

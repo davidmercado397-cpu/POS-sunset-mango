@@ -1,6 +1,6 @@
-import { CashMovementType } from '@prisma/client';
+import { CashMovementType, PaymentMethod } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class OpenCashDto {
   @IsInt() @Min(0) @Max(1_000_000_000)
@@ -17,6 +17,10 @@ export class OpenCashDto {
 export class CashMovementDto {
   @IsEnum(CashMovementType)
   type: CashMovementType;
+
+  /** Solo para gastos: efectivo de la caja o transferencia */
+  @IsOptional() @IsIn(['CASH', 'TRANSFER'])
+  method?: Extract<PaymentMethod, 'CASH' | 'TRANSFER'>;
 
   @IsInt() @Min(1) @Max(1_000_000_000)
   amount: number;

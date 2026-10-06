@@ -5,11 +5,12 @@ import { AuditTab } from './AuditTab';
 import { BranchesTab } from './BranchesTab';
 import { BrandingTab } from './BrandingTab';
 import { ExpenseCategoriesTab } from './ExpenseCategoriesTab';
+import { PaymentsTab } from './PaymentsTab';
 import { RolesTab } from './RolesTab';
 import { TablesTab } from './TablesTab';
 import { UsersTab } from './UsersTab';
 
-type Tab = 'branches' | 'users' | 'roles' | 'branding' | 'expenses' | 'tables' | 'audit';
+type Tab = 'branches' | 'users' | 'roles' | 'branding' | 'payments' | 'expenses' | 'tables' | 'audit';
 
 export function AdminPage() {
   const { can, session } = useAuth();
@@ -20,10 +21,11 @@ export function AdminPage() {
       { value: 'users', label: 'Usuarios', show: can('users.manage') },
       { value: 'roles', label: 'Roles y permisos', show: can('roles.manage') },
       { value: 'branding', label: 'Marca', show: can('settings.manage') },
+      { value: 'payments', label: 'Pagos en línea', show: can('settings.manage') && session?.tenant?.enabledModules.includes('online') },
       { value: 'expenses', label: 'Categorías de gastos', show: can('expenses.categories') },
       { value: 'tables', label: 'Mesas', show: can('branches.manage') && tablesEnabled },
       { value: 'audit', label: 'Auditoría', show: can('audit.view') },
-    ] as { value: Tab; label: string; show: boolean }[]
+    ] as { value: Tab; label: string; show: boolean | undefined }[]
   ).filter((t) => t.show);
   const [tab, setTab] = useState<Tab>(tabs[0]?.value ?? 'branches');
 
@@ -35,6 +37,7 @@ export function AdminPage() {
       {tab === 'users' && <UsersTab />}
       {tab === 'roles' && <RolesTab />}
       {tab === 'branding' && <BrandingTab />}
+      {tab === 'payments' && <PaymentsTab />}
       {tab === 'expenses' && <ExpenseCategoriesTab />}
       {tab === 'tables' && <TablesTab />}
       {tab === 'audit' && <AuditTab />}

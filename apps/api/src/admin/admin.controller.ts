@@ -6,7 +6,7 @@ import { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ImageUpload } from '../common/image-upload';
-import { BranchDto, BrandingDto, CreateUserDto, NamedDto, RoleDto, TableDto, UpdateUserDto } from './admin.dto';
+import { BoldSettingsDto, BranchDto, BrandingDto, CreateUserDto, NamedDto, RoleDto, TableDto, UpdateUserDto } from './admin.dto';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -108,6 +108,19 @@ export class AdminController {
   @RequirePermissions('settings.manage')
   removeLogo(@CurrentUser() user: AuthUser) {
     return this.admin.removeLogo(user);
+  }
+
+  // Pagos en línea (Bold)
+  @Get('payments/bold')
+  @RequirePermissions('settings.manage')
+  boldSettings(@CurrentUser() user: AuthUser) {
+    return this.admin.boldSettings(user);
+  }
+
+  @Put('payments/bold')
+  @RequirePermissions('settings.manage')
+  updateBoldSettings(@CurrentUser() user: AuthUser, @Body() dto: BoldSettingsDto) {
+    return this.admin.updateBoldSettings(user, dto);
   }
 
   // Categorías de gastos (lectura para quien registra gastos)

@@ -14,4 +14,4 @@ export const formatTime = (value: string | Date) => timeOnly.format(new Date(val
 /** Fecha de hoy (YYYY-MM-DD) en Colombia. */
 export const todayISO = () => new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10);
 
-export const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', TRANSFER: 'Transferencia', QR_BOLD: 'QR Bold' };
+export const PAYMENT_LABELS: Record<string, string> = { CASH: 'Efectivo', TRANSFER: 'Transferencia', QR_BOLD: 'QR / Bold' };

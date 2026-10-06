@@ -44,7 +44,7 @@ export function UsersTab() {
             <tr key={u.id}>
               <td>
                 <p className="font-medium">{u.fullName}</p>
-                <p className="text-xs text-slate-500">@{u.username}</p>
+                <p className="text-xs text-slate-500">{u.username}</p>
               </td>
               <td>
                 {u.role?.name ?? '—'} {!u.isActive && <Badge tone="red">Inactivo</Badge>}
@@ -99,10 +99,9 @@ function UserModal({ user, roles, branches, onClose }: { user: User | null; role
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nombre completo"><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></Field>
-          <Field label="Usuario">
-            <Input value={form.username} disabled={!!user} autoCapitalize="none" onChange={(e) => setForm({ ...form, username: e.target.value })} />
+          <Field label="Correo de ingreso">
+            <Input value={form.username} disabled={!!user} autoCapitalize="none" inputMode="email" placeholder="cajero1@minegocio.com" onChange={(e) => setForm({ ...form, username: e.target.value })} />
           </Field>
-          <Field label="Correo (opcional)"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           {!user && (
             <Field label="Contraseña">
               <Input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />

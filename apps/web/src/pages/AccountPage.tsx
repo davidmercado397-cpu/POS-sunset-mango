@@ -35,7 +35,7 @@ export function AccountPage() {
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
           <dt className="text-slate-500">Nombre</dt>
           <dd className="font-medium">{session?.user.fullName}</dd>
-          <dt className="text-slate-500">Usuario</dt>
+          <dt className="text-slate-500">Correo / usuario</dt>
           <dd className="font-medium">{session?.user.username}</dd>
           <dt className="text-slate-500">Rol</dt>
           <dd className="font-medium">{session?.user.isSuperAdmin ? 'Super Admin' : (session?.user.role?.name ?? '—')}</dd>

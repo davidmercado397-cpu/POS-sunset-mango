@@ -11,7 +11,11 @@ export function CashSummaryView({ summary }: { summary: CashSummary }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Ventas" value={formatCOP(summary.salesTotal)} hint={`${summary.salesCount} ventas${summary.voidedCount ? ` · ${summary.voidedCount} anuladas` : ''}`} />
         <Stat label="Propinas" value={formatCOP(summary.tipsTotal)} hint="Separadas de las ventas" />
-        <Stat label="Gastos y salidas" value={formatCOP(summary.expenses + summary.withdrawals)} hint={summary.deposits ? `Entradas ${formatCOP(summary.deposits)}` : undefined} />
+        <Stat
+          label="Gastos y salidas (efectivo)"
+          value={formatCOP(summary.expenses + summary.withdrawals)}
+          hint={[summary.expensesTransfer ? `Gastos por transferencia ${formatCOP(summary.expensesTransfer)}` : '', summary.deposits ? `Entradas ${formatCOP(summary.deposits)}` : ''].filter(Boolean).join(' · ') || undefined}
+        />
         <Stat label="Base inicial" value={formatCOP(summary.openingAmount)} />
       </div>
       <Table>
@@ -46,7 +50,7 @@ export function CashSummaryView({ summary }: { summary: CashSummary }) {
         </tbody>
       </Table>
       <p className="text-xs text-slate-500">
-        Efectivo esperado = base + ventas y propinas en efectivo + entradas − gastos − salidas. Diferencia positiva = sobrante; negativa = faltante.
+        Efectivo esperado = base + ventas y propinas en efectivo + entradas − gastos en efectivo − salidas. Los gastos pagados por transferencia se registran aparte y no cambian lo esperado. Diferencia positiva = sobrante; negativa = faltante.
       </p>
     </div>
   );

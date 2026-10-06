@@ -11,7 +11,7 @@ import { Stat } from '../cash/CashSummaryView';
 interface Summary {
   totals: {
     salesCount: number; salesTotal: number; tips: number; avgTicket: number; voidedCount: number; voidedTotal: number;
-    purchases: number; purchasesCount: number; expenses: number; withdrawals: number; cost: number | null; grossProfit: number | null;
+    purchases: number; purchasesCount: number; expenses: number; expensesTransfer: number; withdrawals: number; cost: number | null; grossProfit: number | null;
     cashSessions: number; differences: Record<string, number>;
   };
   byMethod: { method: string; sales: number; tips: number }[];
@@ -20,7 +20,7 @@ interface Summary {
   topProducts: { name: string; category: string | null; quantity: number; total: number }[];
   byCategory: { name: string; total: number; quantity: number }[];
   byUser: { name: string; total: number; count: number; tips: number }[];
-  expenses: { type: string; category: string; total: number }[];
+  expenses: { type: string; method: string; category: string; total: number }[];
   byBranch: { name: string; total: number; count: number }[];
 }
 
@@ -125,7 +125,7 @@ function SalesReport({ canAll }: { canAll: boolean }) {
             <Stat label="Ticket promedio" value={formatCOP(t.avgTicket)} />
             <Stat label="Propinas" value={formatCOP(t.tips)} />
             <Stat label="Anuladas" value={formatCOP(t.voidedTotal)} hint={`${t.voidedCount} ventas`} />
-            <Stat label="Gastos de caja" value={formatCOP(t.expenses)} hint={t.withdrawals ? `Salidas ${formatCOP(t.withdrawals)}` : undefined} />
+            <Stat label="Gastos" value={formatCOP(t.expenses)} hint={[t.expensesTransfer ? `Por transferencia ${formatCOP(t.expensesTransfer)}` : '', t.withdrawals ? `Salidas ${formatCOP(t.withdrawals)}` : ''].filter(Boolean).join(' · ') || undefined} />
             {t.purchasesCount > 0 && <Stat label="Compras" value={formatCOP(t.purchases)} hint={`${t.purchasesCount} compras`} />}
             {t.grossProfit != null && <Stat label="Utilidad bruta" value={formatCOP(t.grossProfit)} hint={`Costo de lo vendido ${formatCOP(t.cost ?? 0)}`} />}
             <Stat label="Diferencias de caja" value={formatCOP(totalDiff)} hint={`${t.cashSessions} cierres`} />
@@ -188,7 +188,7 @@ function SalesReport({ canAll }: { canAll: boolean }) {
             </Card>
             <Card>
               <h2 className="mb-3 font-semibold">Gastos y salidas por categoría</h2>
-              <RankList format={formatCOP} rows={data.expenses.map((e) => ({ label: e.category, value: e.total }))} />
+              <RankList format={formatCOP} rows={data.expenses.map((e) => ({ label: `${e.category}${e.method === 'TRANSFER' ? ' (transferencia)' : ''}`, value: e.total }))} />
             </Card>
           </div>
 

@@ -23,7 +23,10 @@ export interface CashSummary {
   /** Ventas por método, sin propinas */
   sales: ByMethod;
   tips: ByMethod;
+  /** Gastos pagados con efectivo de la caja */
   expenses: number;
+  /** Gastos pagados por transferencia (no afectan el efectivo esperado) */
+  expensesTransfer: number;
   withdrawals: number;
   deposits: number;
   expected: ByMethod;
@@ -51,7 +54,7 @@ export class CashService {
       db.payment.groupBy({ by: ['method'], where: { sale: { cashSessionId: sessionId, status: 'COMPLETED' } }, _sum: { amount: true } }),
       db.sale.findMany({ where: { cashSessionId: sessionId, status: 'COMPLETED' }, select: { subtotal: true, tipAmount: true, tipMethod: true } }),
       db.sale.count({ where: { cashSessionId: sessionId, status: 'VOIDED' } }),
-      db.cashMovement.groupBy({ by: ['type'], where: { sessionId }, _sum: { amount: true } }),
+      db.cashMovement.groupBy({ by: ['type', 'method'], where: { sessionId }, _sum: { amount: true } }),
     ]);
 
     const collected = zero();
@@ -60,8 +63,10 @@ export class CashService {
     for (const s of sales) if (s.tipAmount && s.tipMethod) tips[s.tipMethod] += s.tipAmount;
     const salesBy = zero();
     for (const m of METHODS) salesBy[m] = collected[m] - tips[m];
-    const mv = (t: string) => movements.find((m) => m.type === t)?._sum.amount ?? 0;
+    const mv = (t: string, method: PaymentMethod = 'CASH') =>
+      movements.filter((m) => m.type === t && m.method === method).reduce((s, m) => s + (m._sum.amount ?? 0), 0);
     const expenses = mv('EXPENSE');
+    const expensesTransfer = mv('EXPENSE', 'TRANSFER');
     const withdrawals = mv('WITHDRAWAL');
     const deposits = mv('DEPOSIT');
 
@@ -75,6 +80,7 @@ export class CashService {
       sales: salesBy,
       tips,
       expenses,
+      expensesTransfer,
       withdrawals,
       deposits,
       expected: {
@@ -119,6 +125,10 @@ export class CashService {
   async addMovement(user: AuthUser, branch: BranchContext, dto: CashMovementDto) {
     const tenantId = tenantOf(user);
     const session = await this.openSession(branch.id);
+    const method = dto.type === 'EXPENSE' ? dto.method ?? 'CASH' : 'CASH';
+    if (dto.type !== 'EXPENSE' && dto.method && dto.method !== 'CASH') {
+      throw new BadRequestException('Las salidas y entradas de caja siempre son en efectivo');
+    }
     if (dto.type === 'EXPENSE' && !dto.categoryId && !dto.description?.trim()) {
       throw new BadRequestException('Indica la categoría o la descripción del gasto');
     }
@@ -127,7 +137,7 @@ export class CashService {
     }
     const movement = await this.prisma.$transaction(async (tx) => {
       await this.lockOpen(tx, session.id, true);
-      if (dto.type !== 'DEPOSIT') {
+      if (dto.type !== 'DEPOSIT' && method === 'CASH') {
         const summary = await this.summary(session.id, tx);
         if (dto.amount > summary.expected.CASH) {
           throw new BadRequestException('El valor supera el efectivo disponible en caja');
@@ -139,6 +149,7 @@ export class CashService {
           branchId: branch.id,
           sessionId: session.id,
           type: dto.type,
+          method,
           amount: dto.amount,
           categoryId: dto.type === 'EXPENSE' ? dto.categoryId : null,
           description: dto.description?.trim() || null,
@@ -146,7 +157,7 @@ export class CashService {
         },
       });
     });
-    await this.audit.log({ tenantId, branchId: branch.id, userId: user.id, action: 'cash.movement', entity: 'CashMovement', entityId: movement.id, data: { type: dto.type, amount: dto.amount } });
+    await this.audit.log({ tenantId, branchId: branch.id, userId: user.id, action: 'cash.movement', entity: 'CashMovement', entityId: movement.id, data: { type: dto.type, method, amount: dto.amount } });
     return movement;
   }
 

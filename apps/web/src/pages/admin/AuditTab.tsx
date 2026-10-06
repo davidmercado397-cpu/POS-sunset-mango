@@ -33,6 +33,9 @@ const ACTION_LABELS: Record<string, string> = {
   'online.rejected': 'Pedido en línea rechazado',
   'online.cancelled': 'Pedido en línea cancelado',
   'online.settings': 'Configuración de pedidos en línea',
+  'online.payment_confirmed': 'Pago de pedido en línea confirmado',
+  'settings.bold': 'Configuración de Bold',
+  'cash.monthly_closed': 'Cierre mensual',
   'order.item_removed': 'Producto quitado de una cuenta',
 };
 

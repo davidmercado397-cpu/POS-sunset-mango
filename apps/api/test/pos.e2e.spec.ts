@@ -1,7 +1,7 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createApp, createSuperAdmin, resetDb, setupTenant } from './helpers';
+import { client, createApp, createSuperAdmin, loginAs, resetDb, setupTenant } from './helpers';
 
 type Client = Awaited<ReturnType<typeof setupTenant>>['admin'];
 
@@ -79,11 +79,15 @@ describe('Caja, POS, inventario y mesas', () => {
     const cats = await admin.get('/admin/expense-categories').expect(200);
     await admin.post('/cash/movements', { type: 'EXPENSE', amount: 5000, categoryId: cats.body[0].id, description: 'Hielo' }).expect(201);
     await admin.post('/cash/movements', { type: 'WITHDRAWAL', amount: 999999 }).expect(400);
+    // Gasto pagado por transferencia: se registra, pero no descuenta el efectivo de la caja.
+    await admin.post('/cash/movements', { type: 'EXPENSE', method: 'TRANSFER', amount: 999999, description: 'Arriendo' }).expect(201);
+    await admin.post('/cash/movements', { type: 'WITHDRAWAL', method: 'TRANSFER', amount: 100 }).expect(400);
 
     let current = await admin.get('/cash/current').expect(200);
     expect(current.body.summary.expected).toEqual({ CASH: 115000, TRANSFER: 0, QR_BOLD: 18000 });
     expect(current.body.summary.tips.QR_BOLD).toBe(2000);
     expect(current.body.summary.sales.QR_BOLD).toBe(16000);
+    expect(current.body.summary.expensesTransfer).toBe(999999);
 
     // Anular devuelve el inventario y saca la venta del cuadre.
     await admin.post(`/sales/${sale.body.id}/void`, { reason: 'Cliente se arrepintió' }).expect(201);
@@ -120,7 +124,15 @@ describe('Caja, POS, inventario y mesas', () => {
       .post('/orders', { tableId: table.body.id, items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }] })
       .expect(201);
     await admin.post('/orders', { tableId: table.body.id, items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }] }).expect(409);
-    await admin.post(`/orders/${order.body.id}/items`, { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Grande')] }] }).expect(201);
+    const added = await admin.post(`/orders/${order.body.id}/items`, { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Grande')] }, { productId: burger.id, quantity: 3, optionIds: [option('Normal')] }] }).expect(201);
+    // El mesero (solo con permiso de mesas) puede quitar productos ya enviados.
+    const roles = await admin.get('/admin/roles').expect(200);
+    const mesero = roles.body.roles.find((r: { name: string }) => r.name === 'Mesero');
+    expect(mesero.permissions).not.toContain('sales.void');
+    await admin.post('/admin/users', { fullName: 'Mesero', username: 'mesero@negocio.com', password: 'Secreta123!', roleId: mesero.id, branchIds: [branchId] }).expect(201);
+    const meseroClient = client(app, await loginAs(app, 'MESERO@negocio.com'), branchId);
+    const extra = added.body.items.find((i: { quantity: number }) => i.quantity === 3);
+    await meseroClient.delete(`/orders/${order.body.id}/items/${extra.id}`).expect(200);
     expect(await stock(pan)).toBe(0); // se descuenta al cobrar
 
     await admin.post('/cash/close', { counted: { CASH: 0, TRANSFER: 0, QR_BOLD: 0 } }).expect(400);

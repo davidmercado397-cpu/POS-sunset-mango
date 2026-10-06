@@ -37,15 +37,17 @@ export function LoginPage() {
         <div className="mb-6 flex flex-col items-center text-center">
           <img src="/favicon.svg" alt="" className="mb-3 size-16" />
           <h1 className="text-2xl font-bold">Sunset Mango POS</h1>
-          <p className="text-sm text-slate-500">Ingresa con tu usuario</p>
+          <p className="text-sm text-slate-500">Ingresa con tu correo o usuario</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           {error && <Alert>{error}</Alert>}
-          <Field label="Usuario">
+          <Field label="Correo o usuario">
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              inputMode="email"
+              placeholder="cajero1@minegocio.com"
               autoCapitalize="none"
               autoCorrect="off"
               required

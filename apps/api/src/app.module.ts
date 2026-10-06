@@ -19,6 +19,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { StockModule } from './inventory/stock.module';
 import { KitchenModule } from './kitchen/kitchen.module';
 import { OnlineModule } from './online/online.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
@@ -53,6 +54,7 @@ function staticModules(): DynamicModule[] {
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
     ...staticModules(),
     UploadsModule,
+    PaymentsModule,
     AuthModule,
     PlatformModule,
     AdminModule,
