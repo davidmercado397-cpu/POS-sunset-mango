@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, refreshAccessToken, setAccessToken, setSessionExpiredHandler } from '../lib/api';
+import { api, refreshAccessToken, setAccessToken, setBranchHeader, setSessionExpiredHandler } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import type { AppModule, SessionData } from './types';
 
@@ -51,8 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const stored = readStoredBranch();
       const valid = data.branches.find((b) => b.id === stored) ?? data.branches[0];
       setBranchIdState(valid?.id ?? null);
+      setBranchHeader(valid?.id ?? null);
     } else {
       setBranchIdState(null);
+      setBranchHeader(null);
     }
   }, []);
 
@@ -99,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setBranchId = useCallback((id: string) => {
     storeBranch(id);
+    setBranchHeader(id);
     setBranchIdState(id);
   }, []);
 

@@ -54,6 +54,7 @@ export class JwtAuthGuard implements CanActivate {
       roleId: user.roleId,
       permissions: user.isSuperAdmin ? [] : (user.role?.permissions ?? []).filter(isValidPermission),
       branchIds: user.branches.map((b) => b.branchId),
+      tenantModules: user.tenant?.enabledModules ?? [],
     };
     return true;
   }

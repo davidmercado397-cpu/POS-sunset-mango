@@ -18,7 +18,7 @@ export interface NavItem {
 
 export const SUPER_ADMIN_NAV: NavItem[] = [
   { to: '/', label: 'Inicio', icon: Home, superAdmin: true },
-  { to: '/negocios', label: 'Negocios', icon: Building2, superAdmin: true, phase: 2 },
+  { to: '/negocios', label: 'Negocios', icon: Building2, superAdmin: true },
 ];
 
 export const TENANT_NAV: NavItem[] = [
@@ -33,7 +33,7 @@ export const TENANT_NAV: NavItem[] = [
   { to: '/compras', label: 'Compras', icon: ShoppingBag, anyPermission: ['purchases.manage'], module: 'purchases', phase: 6 },
   { to: '/traslados', label: 'Traslados', icon: ArrowLeftRight, anyPermission: ['transfers.manage'], module: 'transfers', phase: 6 },
   { to: '/reportes', label: 'Reportes', icon: BarChart3, anyPermission: ['reports.view'], module: 'reports', phase: 8 },
-  { to: '/admin', label: 'Administración', icon: Settings, anyPermission: ['branches.manage', 'users.manage', 'roles.manage', 'settings.manage'], phase: 2 },
+  { to: '/admin', label: 'Administración', icon: Settings, anyPermission: ['branches.manage', 'users.manage', 'roles.manage', 'settings.manage', 'expenses.categories', 'audit.view'] },
 ];
 
 export const ACCOUNT_NAV: NavItem = { to: '/cuenta', label: 'Mi cuenta', icon: UserCog };

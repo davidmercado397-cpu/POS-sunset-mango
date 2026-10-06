@@ -5,6 +5,12 @@
 let accessToken: string | null = null;
 let refreshing: Promise<string | null> | null = null;
 let onSessionExpired: (() => void) | null = null;
+let currentBranchId: string | null = null;
+
+/** Sede seleccionada: se envía en el encabezado X-Branch-Id de cada petición. */
+export function setBranchHeader(id: string | null) {
+  currentBranchId = id;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -59,6 +65,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const doFetch = () => {
     const headers = new Headers(rest.headers);
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+    if (currentBranchId && !headers.has('X-Branch-Id')) headers.set('X-Branch-Id', currentBranchId);
     if (json !== undefined) headers.set('Content-Type', 'application/json');
     return fetch(`/api${path}`, {
       ...rest,
@@ -80,4 +87,11 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/** Sube un archivo (campo "file") con multipart/form-data. */
+export function upload<T = unknown>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append('file', file);
+  return api<T>(path, { method: 'POST', body: form });
 }

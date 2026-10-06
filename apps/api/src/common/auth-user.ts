@@ -10,4 +10,13 @@ export interface AuthUser {
   roleId: string | null;
   permissions: Permission[];
   branchIds: string[];
+  /** Módulos que el Super Admin habilitó para el negocio */
+  tenantModules: string[];
+}
+
+/** Sede validada para la petición actual (encabezado X-Branch-Id). */
+export interface BranchContext {
+  id: string;
+  name: string;
+  modules: string[];
 }
