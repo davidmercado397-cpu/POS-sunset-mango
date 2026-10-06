@@ -29,9 +29,9 @@ export const TENANT_NAV: NavItem[] = [
   { to: '/mesas', label: 'Mesas', icon: Grid3x3, anyPermission: ['tables.manage'], module: 'tables', phase: 9 },
   { to: '/cocina', label: 'Cocina', icon: ChefHat, anyPermission: ['kitchen.view'], module: 'kitchen', phase: 7 },
   { to: '/catalogo', label: 'Catálogo', icon: Utensils, anyPermission: ['catalog.manage'] },
-  { to: '/inventario', label: 'Inventario', icon: Package, anyPermission: ['inventory.view'], module: 'inventory', phase: 6 },
-  { to: '/compras', label: 'Compras', icon: ShoppingBag, anyPermission: ['purchases.manage'], module: 'purchases', phase: 6 },
-  { to: '/traslados', label: 'Traslados', icon: ArrowLeftRight, anyPermission: ['transfers.manage'], module: 'transfers', phase: 6 },
+  { to: '/inventario', label: 'Inventario', icon: Package, anyPermission: ['inventory.view'], module: 'inventory' },
+  { to: '/compras', label: 'Compras', icon: ShoppingBag, anyPermission: ['purchases.manage'], module: 'purchases' },
+  { to: '/traslados', label: 'Traslados', icon: ArrowLeftRight, anyPermission: ['transfers.manage'], module: 'transfers' },
   { to: '/reportes', label: 'Reportes', icon: BarChart3, anyPermission: ['reports.view'], module: 'reports', phase: 8 },
   { to: '/admin', label: 'Administración', icon: Settings, anyPermission: ['branches.manage', 'users.manage', 'roles.manage', 'settings.manage', 'expenses.categories', 'audit.view'] },
 ];

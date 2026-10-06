@@ -15,6 +15,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { AppConfigModule } from './config/config.module';
 import { ENV, Env } from './config/env';
 import { HealthController } from './health/health.controller';
+import { InventoryModule } from './inventory/inventory.module';
 import { StockModule } from './inventory/stock.module';
 import { KitchenModule } from './kitchen/kitchen.module';
 import { PlatformModule } from './platform/platform.module';
@@ -58,6 +59,7 @@ function staticModules(): DynamicModule[] {
     KitchenModule,
     CashModule,
     SalesModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
   providers: [

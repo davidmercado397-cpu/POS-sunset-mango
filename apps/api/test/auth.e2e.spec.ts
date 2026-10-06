@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { hashPassword } from '../src/auth/password';
 import { ENV, Env } from '../src/config/env';
 import { configureApp } from '../src/main';
+import { resetDb } from './helpers';
 
 /**
  * Pruebas de integración contra PostgreSQL real.
@@ -30,10 +31,7 @@ describe('Autenticación', () => {
   });
 
   beforeEach(async () => {
-    await prisma.refreshToken.deleteMany();
-    await prisma.auditLog.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.tenant.deleteMany();
+    await resetDb(prisma);
     await prisma.user.create({
       data: { username: 'master', fullName: 'Master', isSuperAdmin: true, passwordHash: await hashPassword(PASSWORD) },
     });

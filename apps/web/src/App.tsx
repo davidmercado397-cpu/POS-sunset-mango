@@ -8,6 +8,9 @@ import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/admin/AdminPage';
 import { CashPage } from './pages/cash/CashPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
+import { InventoryPage } from './pages/inventory/InventoryPage';
+import { PurchasesPage } from './pages/inventory/PurchasesPage';
+import { TransfersPage } from './pages/inventory/TransfersPage';
 import { PosPage } from './pages/pos/PosPage';
 import { SalesPage } from './pages/sales/SalesPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
@@ -23,6 +26,9 @@ const PAGES: Record<string, ReactNode> = {
   '/pos': <PosPage />,
   '/caja': <CashPage />,
   '/ventas': <SalesPage />,
+  '/inventario': <InventoryPage />,
+  '/compras': <PurchasesPage />,
+  '/traslados': <TransfersPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */
