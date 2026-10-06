@@ -2,7 +2,7 @@ export interface RecipeLine { inventoryItemId: string; name?: string; unit?: str
 
 export interface ModifierOption { id?: string; name: string; priceDelta: number; isActive: boolean; recipe: RecipeLine[] }
 
-export interface ModifierGroup { id?: string; name: string; minSelect: number; maxSelect: number; options: ModifierOption[] }
+export interface ModifierGroup { id?: string; name: string; minSelect: number; maxSelect: number; allowRepeat?: boolean; options: ModifierOption[] }
 
 export interface Category { id: string; name: string; color: string; sortOrder: number; isActive: boolean; _count?: { products: number } }
 
@@ -20,6 +20,8 @@ export interface Product {
   disabledBranchIds: string[];
   recipe: RecipeLine[];
   modifierGroups: ModifierGroup[];
+  isCombo: boolean;
+  comboItems: { productId: string; name?: string; imageUrl?: string | null; price?: number; quantity: number }[];
 }
 
 export interface InventoryItem {
@@ -41,3 +43,10 @@ export const UNITS = [
   { value: 'oz', label: 'Onzas' },
   { value: 'porcion', label: 'Porción' },
 ];
+
+/** Agrupa nombres repetidos: ["Queso", "Queso"] → ["2× Queso"]. */
+export function summarizeNames(names: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+  return [...counts].map(([name, count]) => (count > 1 ? `${count}× ${name}` : name));
+}

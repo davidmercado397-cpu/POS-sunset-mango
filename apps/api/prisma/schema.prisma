@@ -204,6 +204,8 @@ model Product {
   sortOrder         Int      @default(0)
   /// Se envía a la pantalla de cocina al vender
   sendToKitchen     Boolean  @default(true)
+  /// Combo: agrupa otros productos del catálogo (ver ComboItem)
+  isCombo           Boolean  @default(false)
   /// Sedes donde NO está disponible (vacío = todas)
   disabledBranchIds String[] @default([])
   createdAt         DateTime @default(now())
@@ -213,18 +215,36 @@ model Product {
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   modifierGroups ModifierGroup[]
   recipe         RecipeLine[]
+  comboItems     ComboItem[]     @relation("ComboOf")
+  inCombos       ComboItem[]     @relation("ComboComponent")
 
   @@index([tenantId])
 }
 
+/// Producto incluido en un combo
+model ComboItem {
+  id        String @id @default(uuid())
+  comboId   String
+  productId String
+  quantity  Int    @default(1)
+  sortOrder Int    @default(0)
+
+  combo   Product @relation("ComboOf", fields: [comboId], references: [id], onDelete: Cascade)
+  product Product @relation("ComboComponent", fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([comboId])
+}
+
 /// Grupo de variantes/adiciones de un producto (ej. "Tamaño", "Adiciones")
 model ModifierGroup {
-  id        String @id @default(uuid())
-  productId String
-  name      String
-  minSelect Int    @default(0)
-  maxSelect Int    @default(1)
-  sortOrder Int    @default(0)
+  id          String  @id @default(uuid())
+  productId   String
+  name        String
+  minSelect   Int     @default(0)
+  maxSelect   Int     @default(1)
+  /// Permite elegir la misma opción varias veces (ej. doble topping)
+  allowRepeat Boolean @default(false)
+  sortOrder   Int     @default(0)
 
   product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   options ModifierOption[]

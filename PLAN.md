@@ -81,6 +81,10 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 - Productos: foto, nombre, descripción, precio base, categoría, activo/inactivo, disponibilidad por sede.
 - **Variantes / modificadores**: grupos como "Tamaño" (selección única, obligatorio) o "Adiciones" (múltiple, opcional), y cada opción puede sumar precio.
 
+### 5.1.1 Combos y toppings
+- **Combos:** un producto marcado como combo agrupa otros productos del catálogo con un precio especial (no se pueden anidar combos). Al venderse descuenta la receta de cada producto incluido; cocina ve su contenido. Puede tener sus propias opciones (ej. elegir la bebida).
+- **Toppings:** grupos de opciones con precio por producto, configurables por el administrador. Hay un botón para crearlos rápido, se pueden copiar de otro producto y pueden ser **repetibles** (ej. doble queso). Cada unidad suma su precio y su receta. Se muestran en el POS, en las mesas y en la tienda en línea.
+
 ### 5.2 POS
 - Cuadrícula de productos con foto y descripción, filtro por categoría y buscador.
 - Selección de variantes en un modal, carrito con cantidades y notas por ítem.

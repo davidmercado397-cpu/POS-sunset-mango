@@ -12,7 +12,7 @@ Todas las fases del plan están construidas y probadas:
 |---|---|
 | Plataforma (Super Admin) | Crear y suspender negocios, pestaña **Seguridad** con los módulos disponibles por negocio, restablecer contraseñas |
 | Administración del negocio | Sedes con módulos por sede, usuarios, roles y permisos, marca (logo y colores), categorías de gastos, mesas y auditoría |
-| Catálogo | Categorías, productos con foto, variantes y adiciones con precio, disponibilidad por sede y receta |
+| Catálogo | Categorías, productos con foto, variantes y toppings con precio (también repetibles, como doble queso), **combos** de varios productos, disponibilidad por sede y receta |
 | POS | Venta por foto, variantes, pago combinado (efectivo, transferencia y QR Bold), propina opcional, cálculo del cambio |
 | Caja | Apertura con billetes y monedas, gastos (en efectivo o por transferencia), salidas y entradas, cuadre diario por método de pago con diferencias y **cierre mensual** por sede o consolidado de todas las sedes. El administrador puede reabrir un mes |
 | Gastos administrativos | Arriendo, nómina, servicios y otros gastos que no pasan por la caja del día, con soporte en foto; entran al cierre mensual y a los reportes |

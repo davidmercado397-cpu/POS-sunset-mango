@@ -41,12 +41,16 @@ export function Field({ label, error, children }: { label: string; error?: strin
   );
 }
 
+/** Si el llamador fija un ancho (w-20, w-28…), no se fuerza el ancho completo. */
+const hasWidth = (className?: string) => !!className && /(^|\s)w-(\d|\[|px|auto|fit|min|max)/.test(className);
+
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
       className={clsx(
-        'block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400',
+        !hasWidth(className) && 'w-full',
+        'block min-h-11 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400',
         'focus:border-brand focus:ring-2 focus:ring-brand/30 focus:outline-none',
         className,
       )}
@@ -79,7 +83,8 @@ export function Select({ className, children, ...props }: React.SelectHTMLAttrib
     <select
       {...props}
       className={clsx(
-        'block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900',
+        !hasWidth(className) && 'w-full',
+        'block min-h-11 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900',
         'focus:border-brand focus:ring-2 focus:ring-brand/30 focus:outline-none disabled:bg-slate-100',
         className,
       )}

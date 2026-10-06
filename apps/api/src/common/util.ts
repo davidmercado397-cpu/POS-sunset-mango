@@ -33,3 +33,10 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 50);
 }
+
+/** Agrupa nombres repetidos: ["Queso", "Queso", "Tocineta"] → ["2× Queso", "Tocineta"]. */
+export function summarizeNames(names: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+  return [...counts].map(([name, count]) => (count > 1 ? `${count}× ${name}` : name));
+}

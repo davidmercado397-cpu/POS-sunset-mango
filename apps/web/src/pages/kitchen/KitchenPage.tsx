@@ -15,7 +15,7 @@ interface Ticket {
   label: string;
   createdAt: string;
   updatedAt: string;
-  items: { name: string; quantity: number; modifiers: string[]; notes?: string | null }[];
+  items: { name: string; quantity: number; modifiers: string[]; components?: string[]; notes?: string | null }[];
 }
 
 const COLUMNS: { status: Status; title: string; next?: Status; action?: string; color: string }[] = [
@@ -94,6 +94,9 @@ export function KitchenPage() {
                     {t.items.map((i, idx) => (
                       <li key={idx}>
                         <p className="text-lg leading-tight font-semibold"><span className="mr-1 text-brand-dark">{i.quantity}×</span>{i.name}</p>
+                        {i.components && i.components.length > 0 && (
+                          <ul className="mt-0.5 text-sm font-medium text-slate-700">{i.components.map((c, k) => <li key={k}>↳ {c}</li>)}</ul>
+                        )}
                         {i.modifiers.length > 0 && <p className="text-sm text-slate-600">{i.modifiers.join(', ')}</p>}
                         {i.notes && <p className="text-sm font-semibold text-red-700">⚠ {i.notes}</p>}
                       </li>

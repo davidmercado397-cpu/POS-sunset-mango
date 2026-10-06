@@ -52,8 +52,15 @@ export function ProductPicker({ menu, onAdd }: { menu: Menu; onAdd: (p: MenuProd
             >
               <ProductImage src={p.imageUrl} alt={p.name} color={colors.get(p.categoryId ?? '')} className="aspect-[4/3] w-full" />
               <div className="flex flex-1 flex-col p-2.5">
-                <p className="line-clamp-2 text-sm leading-tight font-semibold">{p.name}</p>
-                {p.description && <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{p.description}</p>}
+                <p className="line-clamp-2 text-sm leading-tight font-semibold">
+                  {p.isCombo && <span className="mr-1 rounded bg-brand/15 px-1 text-[10px] font-bold text-brand-dark uppercase">Combo</span>}
+                  {p.name}
+                </p>
+                {p.isCombo && p.comboItems?.length ? (
+                  <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">Incluye: {p.comboItems.map((c) => `${c.quantity > 1 ? `${c.quantity}× ` : ''}${c.name}`).join(', ')}</p>
+                ) : (
+                  p.description && <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{p.description}</p>
+                )}
                 <p className="mt-auto pt-1 text-sm font-bold text-brand-dark">
                   {p.modifierGroups.length > 0 && <span className="text-xs font-normal text-slate-500">desde </span>}
                   {formatCOP(p.price)}
@@ -69,25 +76,41 @@ export function ProductPicker({ menu, onAdd }: { menu: Menu; onAdd: (p: MenuProd
 }
 
 function ModifierModal({ product, onClose, onAdd }: { product: MenuProduct; onClose: () => void; onAdd: (o: MenuOption[], q: number, notes: string) => void }) {
-  // Preselecciona la primera opción de los grupos obligatorios de una sola elección.
-  const [chosen, setChosen] = useState<Record<string, string[]>>(() =>
-    Object.fromEntries(product.modifierGroups.map((g) => [g.id, g.minSelect === 1 && g.maxSelect === 1 ? [g.options[0].id] : []])),
+  // Cantidad elegida de cada opción por grupo. Se preselecciona la primera opción de los grupos obligatorios de una sola elección.
+  const [counts, setCounts] = useState<Record<string, Record<string, number>>>(() =>
+    Object.fromEntries(product.modifierGroups.map((g) => [g.id, g.minSelect === 1 && g.maxSelect === 1 ? { [g.options[0].id]: 1 } : {}])),
   );
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
 
+  const total = (groupId: string) => Object.values(counts[groupId] ?? {}).reduce((s, n) => s + n, 0);
+
   const toggle = (groupId: string, optionId: string, max: number) => {
-    setChosen((prev) => {
-      const current = prev[groupId] ?? [];
-      if (current.includes(optionId)) return { ...prev, [groupId]: current.filter((x) => x !== optionId) };
-      if (max === 1) return { ...prev, [groupId]: [optionId] };
-      if (current.length >= max) return prev;
-      return { ...prev, [groupId]: [...current, optionId] };
+    setCounts((prev) => {
+      const current = prev[groupId] ?? {};
+      if (current[optionId]) {
+        const { [optionId]: _, ...rest } = current;
+        return { ...prev, [groupId]: rest };
+      }
+      if (max === 1) return { ...prev, [groupId]: { [optionId]: 1 } };
+      if (total(groupId) >= max) return prev;
+      return { ...prev, [groupId]: { ...current, [optionId]: 1 } };
     });
   };
 
-  const options = product.modifierGroups.flatMap((g) => g.options.filter((o) => chosen[g.id]?.includes(o.id)));
-  const missing = product.modifierGroups.filter((g) => (chosen[g.id]?.length ?? 0) < g.minSelect);
+  const step = (groupId: string, optionId: string, delta: number, max: number) => {
+    setCounts((prev) => {
+      const current = prev[groupId] ?? {};
+      const next = Math.max(0, (current[optionId] ?? 0) + delta);
+      if (delta > 0 && total(groupId) >= max) return prev;
+      const updated = { ...current, [optionId]: next };
+      if (!next) delete updated[optionId];
+      return { ...prev, [groupId]: updated };
+    });
+  };
+
+  const options = product.modifierGroups.flatMap((g) => g.options.flatMap((o) => Array.from({ length: counts[g.id]?.[o.id] ?? 0 }, () => o)));
+  const missing = product.modifierGroups.filter((g) => total(g.id) < g.minSelect);
   const unit = product.price + options.reduce((s, o) => s + o.priceDelta, 0);
 
   return (
@@ -105,21 +128,43 @@ function ModifierModal({ product, onClose, onAdd }: { product: MenuProduct; onCl
         </div>
       }>
       <div className="space-y-5">
+        {product.isCombo && product.comboItems?.length ? (
+          <div className="rounded-xl bg-brand/10 p-3 text-sm">
+            <p className="font-semibold text-brand-dark">Este combo incluye</p>
+            <ul className="mt-1 text-slate-700">{product.comboItems.map((c, i) => <li key={i}>• {c.quantity}× {c.name}</li>)}</ul>
+          </div>
+        ) : null}
         {product.description && <p className="text-sm text-slate-600">{product.description}</p>}
         {product.modifierGroups.map((g) => (
           <div key={g.id}>
             <div className="mb-2 flex items-baseline justify-between">
               <p className="font-semibold">{g.name}</p>
-              <span className={clsx('text-xs', (chosen[g.id]?.length ?? 0) < g.minSelect ? 'font-semibold text-red-600' : 'text-slate-500')}>
+              <span className={clsx('text-xs', total(g.id) < g.minSelect ? 'font-semibold text-red-600' : 'text-slate-500')}>
                 {g.minSelect > 0 ? 'Obligatorio' : 'Opcional'} · {g.maxSelect === 1 ? 'elige 1' : `hasta ${g.maxSelect}`}
+                {g.allowRepeat && g.maxSelect > 1 ? ' · puedes repetir' : ''}
               </span>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {g.options.map((o) => {
-                const on = chosen[g.id]?.includes(o.id);
+                const n = counts[g.id]?.[o.id] ?? 0;
+                if (g.allowRepeat && g.maxSelect > 1) {
+                  return (
+                    <div key={o.id} className={clsx('flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 text-sm', n ? 'border-brand bg-brand/10' : 'border-slate-200 bg-white')}>
+                      <span className={clsx('min-w-0', n && 'font-semibold')}>
+                        {o.name}
+                        {o.priceDelta !== 0 && <span className="block text-xs text-slate-600">{o.priceDelta > 0 ? '+' : ''}{formatCOP(o.priceDelta)}</span>}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <button className="rounded-lg border border-slate-200 bg-white p-1.5 disabled:opacity-40" disabled={!n} onClick={() => step(g.id, o.id, -1, g.maxSelect)} aria-label={`Quitar ${o.name}`}><Minus className="size-4" /></button>
+                        <span className="w-5 text-center font-bold tabular-nums">{n}</span>
+                        <button className="rounded-lg border border-slate-200 bg-white p-1.5 disabled:opacity-40" disabled={total(g.id) >= g.maxSelect} onClick={() => step(g.id, o.id, 1, g.maxSelect)} aria-label={`Agregar ${o.name}`}><Plus className="size-4" /></button>
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <button key={o.id} onClick={() => toggle(g.id, o.id, g.maxSelect)}
-                    className={clsx('flex min-h-12 items-center justify-between rounded-xl border px-3 text-left text-sm transition', on ? 'border-brand bg-brand/10 font-semibold' : 'border-slate-200 bg-white')}>
+                    className={clsx('flex min-h-12 items-center justify-between rounded-xl border px-3 text-left text-sm transition', n ? 'border-brand bg-brand/10 font-semibold' : 'border-slate-200 bg-white')}>
                     <span>{o.name}</span>
                     {o.priceDelta !== 0 && <span className="text-slate-600">{o.priceDelta > 0 ? '+' : ''}{formatCOP(o.priceDelta)}</span>}
                   </button>

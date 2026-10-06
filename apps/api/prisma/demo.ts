@@ -80,15 +80,15 @@ async function main() {
 
       const product = async (
         name: string, price: number, categoryId: string, description: string,
-        recipe: [string, number][], groups: { name: string; min: number; max: number; options: [string, number, [string, number][]?][] }[] = [], sendToKitchen = true,
+        recipe: [string, number][], groups: { name: string; min: number; max: number; repeat?: boolean; options: [string, number, [string, number][]?][] }[] = [], sendToKitchen = true,
       ) => {
-        await tx.product.create({
+        return tx.product.create({
           data: {
             tenantId: tenant.id, name, price, categoryId, description, sendToKitchen,
             recipe: { create: recipe.map(([inventoryItemId, quantity]) => ({ inventoryItemId, quantity })) },
             modifierGroups: {
               create: groups.map((g, gi) => ({
-                name: g.name, minSelect: g.min, maxSelect: g.max, sortOrder: gi,
+                name: g.name, minSelect: g.min, maxSelect: g.max, allowRepeat: !!g.repeat, sortOrder: gi,
                 options: {
                   create: g.options.map(([oname, delta, rec], oi) => ({
                     name: oname, priceDelta: delta, sortOrder: oi,
@@ -101,18 +101,28 @@ async function main() {
         });
       };
       const size = { name: 'Tamaño', min: 1, max: 1, options: [['Sencilla', 0], ['Doble carne', 6000, [[carne, 150]]]] as [string, number, [string, number][]?][] };
-      const extras = { name: 'Adiciones', min: 0, max: 3, options: [['Queso extra', 2500, [[queso, 1]]], ['Tocineta', 3500, [[tocineta, 30]]], ['Huevo', 2000]] as [string, number, [string, number][]?][] };
-      await product('Hamburguesa Clásica', 18000, burgers, 'Carne 150 g, queso cheddar, lechuga, tomate y salsa de la casa', [[pan, 1], [carne, 150], [queso, 1]], [size, extras]);
+      const extras = { name: 'Toppings', min: 0, max: 4, repeat: true, options: [['Queso extra', 2500, [[queso, 1]]], ['Tocineta', 3500, [[tocineta, 30]]], ['Huevo', 2000]] as [string, number, [string, number][]?][] };
+      const clasica = await product('Hamburguesa Clásica', 18000, burgers, 'Carne 150 g, queso cheddar, lechuga, tomate y salsa de la casa', [[pan, 1], [carne, 150], [queso, 1]], [size, extras]);
       await product('Hamburguesa Sunset', 24000, burgers, 'Carne 150 g, tocineta, cheddar y mermelada de mango', [[pan, 1], [carne, 150], [queso, 1], [tocineta, 30], [mango, 20]], [size, extras]);
-      await product('Papas a la francesa', 7000, sides, 'Porción crocante con sal marina', [[papa, 200]], [
+      const papasProduct = await product('Papas a la francesa', 7000, sides, 'Porción crocante con sal marina', [[papa, 200]], [
         { name: 'Tamaño', min: 1, max: 1, options: [['Personal', 0], ['Grande', 3000, [[papa, 150]]]] },
       ]);
-      await product('Gaseosa', 4000, drinks, 'Botella 400 ml', [[gaseosa, 1]], [], false);
+      const gaseosaProduct = await product('Gaseosa', 4000, drinks, 'Botella 400 ml', [[gaseosa, 1]], [], false);
       await product('Agua', 3500, drinks, 'Botella 600 ml', [[agua, 1]], [], false);
       await product('Jugo de mango', 6500, drinks, 'Natural, en agua o en leche', [[mango, 150]], [
         { name: 'Preparación', min: 1, max: 1, options: [['En agua', 0], ['En leche', 1000]] },
       ]);
       await product('Cheesecake de mango', 9000, desserts, 'Porción individual', [[mango, 40]]);
+
+      // Combo: hamburguesa + papas + gaseosa con precio especial.
+      const combos = await cat('Combos', '#8b5cf6', -1);
+      await tx.product.create({
+        data: {
+          tenantId: tenant.id, name: 'Combo Clásico', price: 25000, categoryId: combos, isCombo: true, sortOrder: 0,
+          description: 'Hamburguesa Clásica + papas personales + gaseosa',
+          comboItems: { create: [clasica.id, papasProduct.id, gaseosaProduct.id].map((productId, i) => ({ productId, quantity: 1, sortOrder: i })) },
+        },
+      });
 
       await generateHistory(tx, tenant.id, centro.id, 7);
       await generateHistory(tx, tenant.id, norte.id, 11, 0.6);

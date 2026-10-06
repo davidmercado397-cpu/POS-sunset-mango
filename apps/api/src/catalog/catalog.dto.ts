@@ -40,6 +40,13 @@ export class ModifierOptionDto {
 
   @IsOptional() @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => RecipeLineDto)
   recipe?: RecipeLineDto[];
+
+  @IsOptional() @IsBoolean()
+  isCombo?: boolean;
+
+  /** Productos que incluye el combo */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => ComboItemDto)
+  comboItems?: ComboItemDto[];
 }
 
 export class ModifierGroupDto {
@@ -55,8 +62,20 @@ export class ModifierGroupDto {
   @IsInt() @Min(1) @Max(50)
   maxSelect: number;
 
+  /** Permite repetir la misma opción (ej. doble topping) */
+  @IsOptional() @IsBoolean()
+  allowRepeat?: boolean;
+
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => ModifierOptionDto)
   options: ModifierOptionDto[];
+}
+
+export class ComboItemDto {
+  @IsUUID()
+  productId: string;
+
+  @IsInt() @Min(1) @Max(50)
+  quantity: number;
 }
 
 export class ProductDto {
@@ -89,4 +108,11 @@ export class ProductDto {
 
   @IsOptional() @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => RecipeLineDto)
   recipe?: RecipeLineDto[];
+
+  @IsOptional() @IsBoolean()
+  isCombo?: boolean;
+
+  /** Productos que incluye el combo */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => ComboItemDto)
+  comboItems?: ComboItemDto[];
 }

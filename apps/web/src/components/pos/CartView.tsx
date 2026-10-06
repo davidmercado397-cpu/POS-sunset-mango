@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ProductImage } from '../ProductImage';
 import { formatCOP } from '../../lib/format';
 import type { Cart } from './useCart';
+import { summarizeNames } from '../../lib/types';
 
 /** Lista del pedido con cantidades editables. */
 export function CartView({ cart, header, footer }: { cart: Cart; header?: ReactNode; footer?: ReactNode }) {
@@ -22,7 +23,7 @@ export function CartView({ cart, header, footer }: { cart: Cart; header?: ReactN
                 <ProductImage src={l.imageUrl} alt="" className="size-12 shrink-0 rounded-lg" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{l.name}</p>
-                  {l.options.length > 0 && <p className="truncate text-xs text-slate-500">{l.options.map((o) => o.name).join(', ')}</p>}
+                  {l.options.length > 0 && <p className="truncate text-xs text-slate-500">{summarizeNames(l.options.map((o) => o.name)).join(', ')}</p>}
                   {l.notes && <p className="truncate text-xs text-amber-700">“{l.notes}”</p>}
                   <p className="text-sm font-bold">{formatCOP(l.unitPrice * l.quantity)}</p>
                 </div>

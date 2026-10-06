@@ -13,6 +13,7 @@ import { api } from '../../lib/api';
 import { formatCOP, formatDateTime, formatTime, PAYMENT_LABELS, todayISO } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
 import { beep, useBranchSocket } from '../../lib/useBranchSocket';
+import { summarizeNames } from '../../lib/types';
 
 type Status = 'NEW' | 'ACCEPTED' | 'READY' | 'DISPATCHED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
 interface OnlineOrder {
@@ -106,7 +107,7 @@ function ActiveOrders() {
             <ul className="space-y-0.5 text-sm">
               {o.items.map((i, idx) => (
                 <li key={idx} className="flex justify-between gap-2">
-                  <span>{i.quantity} × {i.productName}{i.modifiers.length > 0 && <span className="text-slate-500"> ({i.modifiers.map((m) => m.optionName).join(', ')})</span>}</span>
+                  <span>{i.quantity} × {i.productName}{i.modifiers.length > 0 && <span className="text-slate-500"> ({summarizeNames(i.modifiers.map((m) => m.optionName)).join(', ')})</span>}</span>
                   <span className="tabular-nums">{formatCOP(i.lineTotal)}</span>
                 </li>
               ))}

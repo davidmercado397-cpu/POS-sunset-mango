@@ -62,13 +62,14 @@ function ProductsTab({ categories }: { categories: Category[] }) {
               <div className="flex flex-wrap gap-1">
                 {!p.isActive && <Badge tone="red">Inactivo</Badge>}
                 {p.modifierGroups.length > 0 && <Badge tone="blue">{p.modifierGroups.length} grupos</Badge>}
+                {p.isCombo && <Badge tone="brand">Combo</Badge>}
                 {p.recipe.length > 0 && <Badge tone="green">Receta</Badge>}
               </div>
             </div>
           </button>
         ))}
       </div>
-      {editing && <ProductEditor product={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} />}
+      {editing && <ProductEditor product={editing === 'new' ? null : editing} categories={categories} products={products.data ?? []} onClose={() => setEditing(null)} />}
     </div>
   );
 }

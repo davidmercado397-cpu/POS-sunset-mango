@@ -6,7 +6,7 @@ import { AuthUser, BranchContext } from '../common/auth-user';
 import { normalizeSubdomain, storeUrl, subdomainFromHost } from '../common/store-address';
 import { ENV, Env } from '../config/env';
 import { effectiveModules } from '../common/modules';
-import { dayRange, tenantOf } from '../common/util';
+import { dayRange, summarizeNames, tenantOf } from '../common/util';
 import { KitchenService } from '../kitchen/kitchen.service';
 import { BoldService } from '../payments/bold.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -198,12 +198,12 @@ export class OnlineService {
   }
 
   private async sendToKitchen(tx: Prisma.TransactionClient, order: OnlineOrder) {
-    const lines = order.items as unknown as { productId: string; productName: string; quantity: number; notes: string | null; modifiers: { optionName: string }[] }[];
+    const lines = order.items as unknown as { productId: string; productName: string; quantity: number; notes: string | null; modifiers: { optionName: string }[]; components?: string[] }[];
     const products = await tx.product.findMany({ where: { id: { in: lines.map((l) => l.productId) } }, select: { id: true, sendToKitchen: true } });
     const kitchenIds = new Set(products.filter((p) => p.sendToKitchen).map((p) => p.id));
     const items = lines
       .filter((l) => kitchenIds.has(l.productId))
-      .map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: l.modifiers.map((m) => m.optionName), notes: l.notes }));
+      .map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: summarizeNames(l.modifiers.map((m) => m.optionName)), components: l.components, notes: l.notes }));
     if (!items.length) return;
     await this.kitchen.createTicket(tx, {
       tenantId: order.tenantId,

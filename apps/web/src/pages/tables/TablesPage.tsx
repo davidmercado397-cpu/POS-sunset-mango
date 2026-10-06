@@ -15,6 +15,7 @@ import { api } from '../../lib/api';
 import { formatCOP } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
 import { useBranchSocket } from '../../lib/useBranchSocket';
+import { summarizeNames } from '../../lib/types';
 
 type Target = { kind: 'new'; tableId?: string; tableName?: string } | { kind: 'order'; id: string };
 
@@ -167,7 +168,7 @@ function OrderScreen({ menu, target, onBack, onOpened }: { menu: Menu; target: T
                 <li key={i.id} className="flex items-center gap-3 px-5 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{i.quantity} × {i.productName}</p>
-                    {i.modifiers.length > 0 && <p className="text-xs text-slate-500">{i.modifiers.map((m) => m.optionName).join(', ')}</p>}
+                    {i.modifiers.length > 0 && <p className="text-xs text-slate-500">{summarizeNames(i.modifiers.map((m) => m.optionName)).join(', ')}</p>}
                     {i.notes && <p className="text-xs text-amber-700">“{i.notes}”</p>}
                   </div>
                   <span className="font-semibold tabular-nums">{formatCOP(i.lineTotal)}</span>

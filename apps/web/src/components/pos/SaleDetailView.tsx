@@ -1,6 +1,7 @@
 import { Badge } from '../ui';
 import { formatCOP, formatDateTime, PAYMENT_LABELS } from '../../lib/format';
 import type { SaleDetail } from './types';
+import { summarizeNames } from '../../lib/types';
 
 /** Detalle de una venta: ítems, pagos, propina y estado. */
 export function SaleDetailView({ sale }: { sale: SaleDetail }) {
@@ -29,7 +30,7 @@ export function SaleDetailView({ sale }: { sale: SaleDetail }) {
           <li key={i.id} className="flex justify-between gap-3 px-3 py-2">
             <div className="min-w-0">
               <p className="font-medium">{i.quantity} × {i.productName}</p>
-              {i.modifiers.length > 0 && <p className="text-xs text-slate-500">{i.modifiers.map((m) => m.optionName).join(', ')}</p>}
+              {i.modifiers.length > 0 && <p className="text-xs text-slate-500">{summarizeNames(i.modifiers.map((m) => m.optionName)).join(', ')}</p>}
               {i.notes && <p className="text-xs text-amber-700">“{i.notes}”</p>}
             </div>
             <span className="font-semibold tabular-nums">{formatCOP(i.lineTotal)}</span>

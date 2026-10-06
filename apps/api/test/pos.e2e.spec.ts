@@ -174,4 +174,71 @@ describe('Caja, POS, inventario y mesas', () => {
     expect(margins.body[0]).toMatchObject({ price: 15000, cost: 3000, margin: 12000 });
     await admin.get('/reports/summary?scope=all').expect(200);
   });
+
+  it('combos: descuentan cada producto incluido y muestran el detalle en cocina', async () => {
+    const papa = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Papa', unit: 'g' } })).id;
+    const gaseosaItem = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Gaseosa 400', unit: 'und', type: 'PRODUCT' } })).id;
+    const papas = (await admin.post('/catalog/products', { name: 'Papas', price: 6000, recipe: [{ inventoryItemId: papa, quantity: 200 }] }).expect(201)).body.id;
+    const gaseosa = (await admin.post('/catalog/products', { name: 'Gaseosa', price: 4000, sendToKitchen: false, recipe: [{ inventoryItemId: gaseosaItem, quantity: 1 }] }).expect(201)).body.id;
+
+    await admin.post('/catalog/products', { name: 'Combo vacío', price: 1, isCombo: true, comboItems: [] }).expect(400);
+    const combo = await admin
+      .post('/catalog/products', {
+        name: 'Combo Clásico', price: 22000, isCombo: true,
+        comboItems: [{ productId: burger.id, quantity: 1 }, { productId: papas, quantity: 1 }, { productId: gaseosa, quantity: 1 }],
+      })
+      .expect(201);
+    expect(combo.body.comboItems.map((c: { name: string }) => c.name)).toEqual(['Hamburguesa', 'Papas', 'Gaseosa']);
+    await admin.post('/catalog/products', { name: 'Súper combo', price: 1, isCombo: true, comboItems: [{ productId: combo.body.id, quantity: 1 }] }).expect(400);
+    await admin.delete(`/catalog/products/${papas}`).expect(400); // está en un combo
+
+    const menu = await admin.get('/pos/menu').expect(200);
+    expect(menu.body.products.find((p: { id: string }) => p.id === combo.body.id).comboItems).toHaveLength(3);
+
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    const sale = await admin.post('/sales', { items: [{ productId: combo.body.id, quantity: 2 }], payments: [{ method: 'CASH', amount: 44000 }] }).expect(201);
+    expect(await stock(pan)).toBe(-2);
+    expect(await stock(carne)).toBe(-200);
+    expect(await stock(papa)).toBe(-400);
+    expect(await stock(gaseosaItem)).toBe(-2);
+    const ticket = await prisma.kitchenTicket.findFirst({ where: { saleId: sale.body.id } });
+    expect((ticket!.items as { components: string[] }[])[0].components).toEqual(['1× Hamburguesa', '1× Papas', '1× Gaseosa']);
+
+    // Anular el combo devuelve todo.
+    await admin.post(`/sales/${sale.body.id}/void`, { reason: 'prueba' }).expect(201);
+    expect(await stock(papa)).toBe(0);
+    expect(await stock(gaseosaItem)).toBe(0);
+  });
+
+  it('toppings repetibles: suman precio e inventario por cada unidad', async () => {
+    const queso = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Queso', unit: 'und' } })).id;
+    const helado = await admin
+      .post('/catalog/products', {
+        name: 'Helado', price: 8000,
+        modifierGroups: [
+          { name: 'Toppings', minSelect: 0, maxSelect: 4, allowRepeat: true, options: [{ name: 'Queso', priceDelta: 2000, recipe: [{ inventoryItemId: queso, quantity: 1 }] }, { name: 'Arequipe', priceDelta: 1500 }] },
+          { name: 'Vaso', minSelect: 0, maxSelect: 1, options: [{ name: 'Grande', priceDelta: 1000 }] },
+        ],
+      })
+      .expect(201);
+    const [toppings, vaso] = helado.body.modifierGroups;
+    expect(toppings.allowRepeat).toBe(true);
+    const q = toppings.options[0].id;
+    const a = toppings.options[1].id;
+    const g = vaso.options[0].id;
+
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    const sale = await admin.post('/sales', { items: [{ productId: helado.body.id, quantity: 1, optionIds: [q, q, a] }], payments: [{ method: 'CASH', amount: 13500 }] }).expect(201);
+    expect(sale.body.items[0].unitPrice).toBe(13500);
+    expect(await stock(queso)).toBe(-2);
+    // Excede el máximo o repite en un grupo que no lo permite.
+    await admin.post('/sales', { items: [{ productId: helado.body.id, quantity: 1, optionIds: [q, q, q, a, a] }], payments: [{ method: 'CASH', amount: 1 }] }).expect(400);
+    await admin.post('/sales', { items: [{ productId: helado.body.id, quantity: 1, optionIds: [g, g] }], payments: [{ method: 'CASH', amount: 10000 }] }).expect(400);
+
+    // En cuentas abiertas también descuenta por unidad al cobrar.
+    const table = await admin.post(`/admin/branches/${branchId}/tables`, { name: 'Mesa T' }).expect(201);
+    const order = await admin.post('/orders', { tableId: table.body.id, items: [{ productId: helado.body.id, quantity: 2, optionIds: [q, q] }] }).expect(201);
+    await admin.post(`/orders/${order.body.id}/pay`, { payments: [{ method: 'CASH', amount: 24000 }] }).expect(201);
+    expect(await stock(queso)).toBe(-6);
+  });
 });

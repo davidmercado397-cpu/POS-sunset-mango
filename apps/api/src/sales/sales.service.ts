@@ -3,7 +3,7 @@ import { PaymentMethod, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { CashService } from '../cash/cash.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
-import { dayRange, num, round3, tenantOf } from '../common/util';
+import { dayRange, num, round3, summarizeNames, tenantOf } from '../common/util';
 import { StockService } from '../inventory/stock.service';
 import { KitchenService, KitchenTicketItem } from '../kitchen/kitchen.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +20,8 @@ export interface PricedLine {
   notes: string | null;
   sendToKitchen: boolean;
   modifiers: { optionId: string; groupName: string; optionName: string; priceDelta: number }[];
+  /** Combo: productos que incluye, para cocina (ej. "1× Hamburguesa") */
+  components?: string[];
   /** Consumo de inventario por la línea completa (cantidad incluida) */
   consumption: Map<string, number>;
 }
@@ -56,6 +58,7 @@ export class SalesService {
             orderBy: { sortOrder: 'asc' },
             include: { options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } } },
           },
+          comboItems: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { name: true } } } },
         },
       }),
       this.prisma.cashSession.findFirst({ where: { branchId: branch.id, status: 'OPEN' }, select: { id: true, openedAt: true } }),
@@ -75,6 +78,8 @@ export class SalesService {
         price: p.price,
         imageUrl: p.imageUrl,
         categoryId: p.categoryId,
+        isCombo: p.isCombo,
+        comboItems: p.comboItems.map((c) => ({ name: c.product.name, quantity: c.quantity })),
         modifierGroups: p.modifierGroups
           .filter((g) => g.options.length > 0)
           .map((g) => ({
@@ -82,6 +87,7 @@ export class SalesService {
             name: g.name,
             minSelect: g.minSelect,
             maxSelect: g.maxSelect,
+            allowRepeat: g.allowRepeat,
             options: g.options.map((o) => ({ id: o.id, name: o.name, priceDelta: o.priceDelta })),
           })),
       })),
@@ -364,6 +370,7 @@ export class SalesService {
       include: {
         recipe: true,
         modifierGroups: { include: { options: { where: { isActive: true }, include: { recipe: true } } } },
+        comboItems: { orderBy: { sortOrder: 'asc' }, include: { product: { include: { recipe: true } } } },
       },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -372,28 +379,41 @@ export class SalesService {
     return items.map((item) => {
       const product = byId.get(item.productId);
       if (!product) throw new BadRequestException('Un producto ya no está disponible. Actualiza el menú');
-      const chosen = [...new Set(item.optionIds ?? [])];
+      // Cuántas veces se eligió cada opción (los toppings repetibles pueden venir varias veces).
+      const counts = new Map<string, number>();
+      for (const id of item.optionIds ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
       const modifiers: PricedLine['modifiers'] = [];
       const consumption = new Map<string, number>();
-      const add = (lines: { inventoryItemId: string; quantity: Prisma.Decimal }[]) => {
+      const add = (lines: { inventoryItemId: string; quantity: Prisma.Decimal }[], times = 1) => {
         if (!useInventory) return;
-        for (const l of lines) consumption.set(l.inventoryItemId, round3((consumption.get(l.inventoryItemId) ?? 0) + num(l.quantity) * item.quantity));
+        for (const l of lines) {
+          consumption.set(l.inventoryItemId, round3((consumption.get(l.inventoryItemId) ?? 0) + num(l.quantity) * times * item.quantity));
+        }
       };
       add(product.recipe);
+      // Un combo descuenta la receta de cada producto que incluye.
+      for (const c of product.comboItems) add(c.product.recipe, c.quantity);
 
       let matched = 0;
       for (const group of product.modifierGroups) {
-        const selected = group.options.filter((o) => chosen.includes(o.id));
-        matched += selected.length;
-        if (group.options.length && (selected.length < group.minSelect || selected.length > group.maxSelect)) {
+        let units = 0;
+        for (const o of group.options) {
+          const n = counts.get(o.id) ?? 0;
+          if (n > 1 && !group.allowRepeat) throw new BadRequestException(`"${product.name}": en "${group.name}" no se puede repetir "${o.name}"`);
+          units += n;
+        }
+        matched += units;
+        if (group.options.length && (units < group.minSelect || units > group.maxSelect)) {
           throw new BadRequestException(`"${product.name}": en "${group.name}" elige ${group.minSelect === group.maxSelect ? group.minSelect : `entre ${group.minSelect} y ${group.maxSelect}`}`);
         }
-        for (const o of selected) {
-          modifiers.push({ optionId: o.id, groupName: group.name, optionName: o.name, priceDelta: o.priceDelta });
-          add(o.recipe);
+        for (const o of group.options) {
+          for (let k = 0; k < (counts.get(o.id) ?? 0); k++) {
+            modifiers.push({ optionId: o.id, groupName: group.name, optionName: o.name, priceDelta: o.priceDelta });
+            add(o.recipe);
+          }
         }
       }
-      if (matched !== chosen.length) throw new BadRequestException(`"${product.name}" tiene opciones inválidas`);
+      if (matched !== (item.optionIds?.length ?? 0)) throw new BadRequestException(`"${product.name}" tiene opciones inválidas`);
 
       const unitPrice = product.price + modifiers.reduce((s, m) => s + m.priceDelta, 0);
       if (unitPrice < 0) throw new BadRequestException(`"${product.name}" quedó con precio negativo`);
@@ -406,26 +426,32 @@ export class SalesService {
         notes: item.notes?.trim() || null,
         sendToKitchen: product.sendToKitchen,
         modifiers,
+        components: product.isCombo ? product.comboItems.map((c) => `${c.quantity}× ${c.product.name}`) : undefined,
         consumption,
       };
     });
   }
 
-  /** Recalcula el consumo de inventario de ítems ya guardados (cuentas abiertas). */
+  /** Recalcula el consumo de inventario de ítems ya guardados (cuentas abiertas y pedidos en línea). */
   private async consumptionFromItems(tx: Tx, items: Prisma.SaleItemGetPayload<{ include: { modifiers: true } }>[]): Promise<PricedLine[]> {
     const productIds = [...new Set(items.map((i) => i.productId).filter(Boolean))] as string[];
     const optionIds = [...new Set(items.flatMap((i) => i.modifiers.map((m) => m.optionId)).filter(Boolean))] as string[];
-    const [productRecipes, optionRecipes] = await Promise.all([
+    const [productRecipes, optionRecipes, comboItems] = await Promise.all([
       tx.recipeLine.findMany({ where: { productId: { in: productIds } } }),
       tx.recipeLine.findMany({ where: { modifierOptionId: { in: optionIds } } }),
+      tx.comboItem.findMany({ where: { comboId: { in: productIds } }, include: { product: { include: { recipe: true } } } }),
     ]);
     return items.map((i) => {
       const consumption = new Map<string, number>();
-      const lines = [
-        ...productRecipes.filter((r) => r.productId === i.productId),
-        ...optionRecipes.filter((r) => i.modifiers.some((m) => m.optionId === r.modifierOptionId)),
-      ];
-      for (const l of lines) consumption.set(l.inventoryItemId, round3((consumption.get(l.inventoryItemId) ?? 0) + num(l.quantity) * i.quantity));
+      const addLines = (lines: { inventoryItemId: string; quantity: Prisma.Decimal }[], times = 1) => {
+        for (const l of lines) {
+          consumption.set(l.inventoryItemId, round3((consumption.get(l.inventoryItemId) ?? 0) + num(l.quantity) * times * i.quantity));
+        }
+      };
+      addLines(productRecipes.filter((r) => r.productId === i.productId));
+      for (const c of comboItems.filter((c) => c.comboId === i.productId)) addLines(c.product.recipe, c.quantity);
+      // Una fila por unidad de opción: un topping doble descuenta dos veces.
+      for (const m of i.modifiers) addLines(optionRecipes.filter((r) => r.modifierOptionId === m.optionId));
       return { ...i, productId: i.productId ?? '', sendToKitchen: false, modifiers: [], consumption } as PricedLine;
     });
   }
@@ -500,7 +526,7 @@ export class SalesService {
     if (!branch.modules.includes('kitchen')) return;
     const items: KitchenTicketItem[] = lines
       .filter((l) => l.sendToKitchen)
-      .map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: l.modifiers.map((m) => m.optionName), notes: l.notes }));
+      .map((l) => ({ name: l.productName, quantity: l.quantity, modifiers: summarizeNames(l.modifiers.map((m) => m.optionName)), components: l.components, notes: l.notes }));
     if (!items.length) return;
     await this.kitchen.createTicket(tx, { tenantId, branchId: branch.id, saleId, label, items });
   }

@@ -8,6 +8,7 @@ import { useApi } from '../../lib/hooks';
 import { applyBrand } from '../../lib/theme';
 import type { StoreInfo } from './StorePage';
 import { useStoreBase } from './storeBase';
+import { summarizeNames } from '../../lib/types';
 
 interface Tracking {
   code: string;
@@ -73,7 +74,7 @@ export function TrackPage() {
       <Card className="space-y-2 text-sm">
         {data.items.map((i, idx) => (
           <div key={idx} className="flex justify-between gap-3">
-            <span>{i.quantity} × {i.productName}{i.modifiers.length > 0 && <span className="text-slate-500"> ({i.modifiers.map((m) => m.optionName).join(', ')})</span>}</span>
+            <span>{i.quantity} × {i.productName}{i.modifiers.length > 0 && <span className="text-slate-500"> ({summarizeNames(i.modifiers.map((m) => m.optionName)).join(', ')})</span>}</span>
             <span className="tabular-nums">{formatCOP(i.lineTotal)}</span>
           </div>
         ))}

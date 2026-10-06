@@ -9,6 +9,7 @@ import { CategoryDto, ProductDto, RecipeLineDto } from './catalog.dto';
 
 export const PRODUCT_INCLUDE = {
   category: { select: { id: true, name: true, color: true } },
+  comboItems: { orderBy: { sortOrder: 'asc' }, include: { product: { select: { id: true, name: true, imageUrl: true, price: true } } } },
   recipe: { include: { inventoryItem: { select: { id: true, name: true, unit: true } } } },
   modifierGroups: {
     orderBy: { sortOrder: 'asc' },
@@ -39,12 +40,15 @@ export function serializeProduct(p: ProductWithRelations) {
     categoryId: p.categoryId,
     category: p.category,
     disabledBranchIds: p.disabledBranchIds,
+    isCombo: p.isCombo,
+    comboItems: p.comboItems.map((c) => ({ productId: c.productId, name: c.product.name, imageUrl: c.product.imageUrl, price: c.product.price, quantity: c.quantity })),
     recipe: mapRecipe(p.recipe),
     modifierGroups: p.modifierGroups.map((g) => ({
       id: g.id,
       name: g.name,
       minSelect: g.minSelect,
       maxSelect: g.maxSelect,
+      allowRepeat: g.allowRepeat,
       options: g.options.map((o) => ({ id: o.id, name: o.name, priceDelta: o.priceDelta, isActive: o.isActive, recipe: mapRecipe(o.recipe) })),
     })),
   };
@@ -118,6 +122,7 @@ export class CatalogService {
       throw new BadRequestException('Categoría inválida');
     }
     if (inventoryEnabled) await this.assertInventoryItems(tenantId, dto);
+    const comboItems = dto.isCombo ? await this.validComboItems(tenantId, dto, id) : [];
 
     const data = {
       name: dto.name.trim(),
@@ -128,6 +133,7 @@ export class CatalogService {
       sendToKitchen: dto.sendToKitchen ?? true,
       sortOrder: dto.sortOrder ?? existing?.sortOrder ?? 0,
       disabledBranchIds: dto.disabledBranchIds ?? [],
+      isCombo: !!dto.isCombo,
     };
 
     const productId = await this.prisma.$transaction(async (tx) => {
@@ -136,6 +142,10 @@ export class CatalogService {
         : await tx.product.create({ data: { ...data, tenantId } });
 
       if (dto.modifierGroups) await this.syncGroups(tx, product.id, dto, existing, inventoryEnabled);
+      await tx.comboItem.deleteMany({ where: { comboId: product.id } });
+      if (comboItems.length) {
+        await tx.comboItem.createMany({ data: comboItems.map((c, i) => ({ comboId: product.id, productId: c.productId, quantity: c.quantity, sortOrder: i })) });
+      }
       if (inventoryEnabled && dto.recipe) {
         await tx.recipeLine.deleteMany({ where: { productId: product.id } });
         await tx.recipeLine.createMany({ data: this.recipeRows(dto.recipe, { productId: product.id }) });
@@ -167,7 +177,7 @@ export class CatalogService {
     await tx.modifierGroup.deleteMany({ where: { productId, id: { notIn: keepGroups } } });
 
     for (const [gi, g] of groups.entries()) {
-      const groupData = { name: g.name.trim(), minSelect: g.minSelect, maxSelect: g.maxSelect, sortOrder: gi };
+      const groupData = { name: g.name.trim(), minSelect: g.minSelect, maxSelect: g.maxSelect, allowRepeat: !!g.allowRepeat, sortOrder: gi };
       const group = g.id && existingGroupIds.has(g.id)
         ? await tx.modifierGroup.update({ where: { id: g.id }, data: groupData })
         : await tx.modifierGroup.create({ data: { ...groupData, productId } });
@@ -185,6 +195,19 @@ export class CatalogService {
         }
       }
     }
+  }
+
+  /** Un combo agrupa productos del mismo negocio que no sean combos (sin anidar) ni el propio combo. */
+  private async validComboItems(tenantId: string, dto: ProductDto, id?: string) {
+    const items = dto.comboItems ?? [];
+    if (items.length < 1) throw new BadRequestException('Agrega al menos un producto al combo');
+    const merged = new Map<string, number>();
+    for (const c of items) merged.set(c.productId, (merged.get(c.productId) ?? 0) + c.quantity);
+    if (id && merged.has(id)) throw new BadRequestException('Un combo no puede incluirse a sí mismo');
+    const products = await this.prisma.product.findMany({ where: { tenantId, id: { in: [...merged.keys()] } }, select: { id: true, isCombo: true } });
+    if (products.length !== merged.size) throw new BadRequestException('El combo tiene productos inválidos');
+    if (products.some((p) => p.isCombo)) throw new BadRequestException('Un combo no puede incluir otro combo');
+    return [...merged].map(([productId, quantity]) => ({ productId, quantity }));
   }
 
   private recipeRows(lines: RecipeLineDto[], owner: { productId?: string; modifierOptionId?: string }) {
@@ -226,6 +249,10 @@ export class CatalogService {
     const tenantId = tenantOf(user);
     const product = await this.prisma.product.findFirst({ where: { id, tenantId } });
     if (!product) throw new NotFoundException('Producto no encontrado');
+    const inCombos = await this.prisma.comboItem.findMany({ where: { productId: id }, include: { combo: { select: { name: true } } } });
+    if (inCombos.length) {
+      throw new BadRequestException(`Está incluido en: ${[...new Set(inCombos.map((c) => c.combo.name))].join(', ')}. Quítalo de esos combos o desactívalo`);
+    }
     // Las ventas guardan copia del nombre y precio, así que el historial no se pierde.
     await this.prisma.product.delete({ where: { id } });
     await this.uploads.remove(tenantId, product.imageUrl);

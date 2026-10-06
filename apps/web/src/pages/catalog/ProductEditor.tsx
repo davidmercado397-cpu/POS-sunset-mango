@@ -13,7 +13,7 @@ import { useApi } from '../../lib/hooks';
 import type { Category, InventoryItem, ModifierGroup, Product, RecipeLine } from '../../lib/types';
 import { RecipeEditor } from './RecipeEditor';
 
-export function ProductEditor({ product, categories, onClose }: { product: Product | null; categories: Category[]; onClose: () => void }) {
+export function ProductEditor({ product, categories, products, onClose }: { product: Product | null; categories: Category[]; products: Product[]; onClose: () => void }) {
   const { session } = useAuth();
   const qc = useQueryClient();
   const inventoryEnabled = !!session?.tenant?.enabledModules.includes('inventory');
@@ -31,6 +31,14 @@ export function ProductEditor({ product, categories, onClose }: { product: Produ
     disabledBranchIds: product?.disabledBranchIds ?? [],
   });
   const [groups, setGroups] = useState<ModifierGroup[]>(product?.modifierGroups ?? []);
+  const [isCombo, setIsCombo] = useState(product?.isCombo ?? false);
+  const [comboItems, setComboItems] = useState<{ productId: string; quantity: number }[]>(
+    product?.comboItems.map((c) => ({ productId: c.productId, quantity: c.quantity })) ?? [],
+  );
+  const [copyFrom, setCopyFrom] = useState('');
+  // Productos que pueden ir en un combo: cualquiera que no sea combo ni este mismo producto.
+  const comboCandidates = products.filter((p) => !p.isCombo && p.id !== product?.id);
+  const comboValue = comboItems.reduce((s, c) => s + (products.find((p) => p.id === c.productId)?.price ?? 0) * c.quantity, 0);
   const [recipe, setRecipe] = useState<RecipeLine[]>(product?.recipe ?? []);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(product?.imageUrl ?? null);
@@ -46,8 +54,10 @@ export function ProductEditor({ product, categories, onClose }: { product: Produ
         ...form,
         description: form.description || undefined,
         categoryId: form.categoryId || null,
+        isCombo,
+        comboItems: isCombo ? comboItems.filter((c) => c.productId && c.quantity > 0) : [],
         modifierGroups: groups.map((g) => ({
-          id: g.id, name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect,
+          id: g.id, name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect, allowRepeat: !!g.allowRepeat,
           options: g.options.map((o) => ({ id: o.id, name: o.name, priceDelta: o.priceDelta, isActive: o.isActive, recipe: inventoryEnabled ? cleanRecipe(o.recipe) : undefined })),
         })),
         recipe: inventoryEnabled ? cleanRecipe(recipe) : undefined,
@@ -133,6 +143,34 @@ export function ProductEditor({ product, categories, onClose }: { product: Produ
             </div>
           )}
 
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <Checkbox label="Es un combo" description="Agrupa varios productos del catálogo con un precio especial. Al venderlo se descuenta del inventario lo de cada producto incluido."
+              checked={isCombo} onChange={(e) => setIsCombo(e.target.checked)} />
+            {isCombo && (
+              <div className="mt-3 space-y-2">
+                {comboItems.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Select className="flex-1" value={c.productId} onChange={(e) => setComboItems(comboItems.map((x, k) => (k === i ? { ...x, productId: e.target.value } : x)))}>
+                      <option value="">Producto…</option>
+                      {comboCandidates.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCOP(p.price)}</option>)}
+                    </Select>
+                    <Input className="w-20 text-right" type="number" min={1} value={c.quantity}
+                      onChange={(e) => setComboItems(comboItems.map((x, k) => (k === i ? { ...x, quantity: Math.max(1, Number(e.target.value)) } : x)))} />
+                    <Button variant="ghost" onClick={() => setComboItems(comboItems.filter((_, k) => k !== i))} aria-label="Quitar"><Trash2 className="size-4 text-red-600" /></Button>
+                  </div>
+                ))}
+                <Button variant="secondary" onClick={() => setComboItems([...comboItems, { productId: '', quantity: 1 }])}><Plus className="size-4" /> Agregar producto al combo</Button>
+                {comboValue > 0 && (
+                  <p className="text-xs text-slate-600">
+                    Por separado valen {formatCOP(comboValue)}.{' '}
+                    {form.price > 0 && form.price < comboValue && <b className="text-emerald-700">El cliente ahorra {formatCOP(comboValue - form.price)}.</b>}
+                  </p>
+                )}
+                <p className="text-xs text-slate-500">Para que el cliente elija (ej. la bebida), agrega abajo un grupo de opciones con su receta.</p>
+              </div>
+            )}
+          </div>
+
           {inventoryEnabled && (
             <div className="rounded-2xl border border-slate-200 p-4">
               <p className="text-sm font-semibold">Receta</p>
@@ -144,19 +182,48 @@ export function ProductEditor({ product, categories, onClose }: { product: Produ
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold">Variantes y adiciones</p>
-                <p className="text-xs text-slate-500">Ej. "Tamaño" (elige 1, obligatorio) o "Adiciones" (opcional, varias).</p>
+                <p className="text-sm font-semibold">Variantes, adiciones y toppings</p>
+                <p className="text-xs text-slate-500">Ej. "Tamaño" (elige 1, obligatorio) o "Toppings" (opcionales, con precio). Se muestran en el POS y en la tienda en línea.</p>
               </div>
-              <Button variant="secondary" onClick={() => setGroups([...groups, { name: '', minSelect: 0, maxSelect: 1, options: [{ name: '', priceDelta: 0, isActive: true, recipe: [] }] }])}>
-                <Plus className="size-4" /> Grupo
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => setGroups([...groups, { name: 'Toppings', minSelect: 0, maxSelect: 5, allowRepeat: true, options: [{ name: '', priceDelta: 0, isActive: true, recipe: [] }] }])}>
+                  <Plus className="size-4" /> Toppings
+                </Button>
+                <Button variant="secondary" onClick={() => setGroups([...groups, { name: '', minSelect: 0, maxSelect: 1, options: [{ name: '', priceDelta: 0, isActive: true, recipe: [] }] }])}>
+                  <Plus className="size-4" /> Grupo
+                </Button>
+              </div>
             </div>
+            {products.some((p) => p.id !== product?.id && p.modifierGroups.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2">
+                <span className="text-xs text-slate-600">Copiar opciones de otro producto:</span>
+                <Select className="min-w-48 flex-1" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
+                  <option value="">Selecciona…</option>
+                  {products.filter((p) => p.id !== product?.id && p.modifierGroups.length > 0).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.modifierGroups.map((g) => g.name).join(', ')})</option>
+                  ))}
+                </Select>
+                <Button variant="secondary" disabled={!copyFrom} onClick={() => {
+                  const source = products.find((p) => p.id === copyFrom);
+                  if (!source) return;
+                  // Se copian como grupos nuevos (sin ids), con sus opciones, precios y recetas.
+                  setGroups([...groups, ...source.modifierGroups.map((g) => ({ ...g, id: undefined, options: g.options.map((o) => ({ ...o, id: undefined })) }))]);
+                  setCopyFrom('');
+                }}>Copiar</Button>
+              </div>
+            )}
             {groups.map((g, gi) => (
               <div key={g.id ?? `new-${gi}`} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                 <div className="flex flex-wrap items-end gap-2">
                   <Field label="Nombre del grupo"><Input value={g.name} placeholder="Tamaño" onChange={(e) => updateGroup(gi, { name: e.target.value })} /></Field>
                   <Field label="Mínimo"><Input className="w-20" type="number" min={0} value={g.minSelect} onChange={(e) => updateGroup(gi, { minSelect: Math.max(0, Number(e.target.value)) })} /></Field>
                   <Field label="Máximo"><Input className="w-20" type="number" min={1} value={g.maxSelect} onChange={(e) => updateGroup(gi, { maxSelect: Math.max(1, Number(e.target.value)) })} /></Field>
+                  {g.maxSelect > 1 && (
+                    <label className="flex min-h-11 items-center gap-2 text-sm">
+                      <input type="checkbox" className="size-5 accent-[var(--brand)]" checked={!!g.allowRepeat} onChange={(e) => updateGroup(gi, { allowRepeat: e.target.checked })} />
+                      Permitir repetir (ej. doble)
+                    </label>
+                  )}
                   <div className="ml-auto flex">
                     <Button variant="ghost" disabled={gi === 0} onClick={() => moveGroup(gi, -1)} aria-label="Subir"><ChevronUp className="size-4" /></Button>
                     <Button variant="ghost" disabled={gi === groups.length - 1} onClick={() => moveGroup(gi, 1)} aria-label="Bajar"><ChevronDown className="size-4" /></Button>

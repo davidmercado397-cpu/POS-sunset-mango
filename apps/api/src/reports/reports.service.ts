@@ -156,14 +156,16 @@ export class ReportsService {
     const [products, stocks] = await Promise.all([
       this.prisma.product.findMany({
         where: { tenantId, isActive: true },
-        include: { recipe: true, category: { select: { name: true } } },
+        include: { recipe: true, category: { select: { name: true } }, comboItems: { include: { product: { include: { recipe: true } } } } },
         orderBy: { name: 'asc' },
       }),
       this.prisma.stock.findMany({ where: { branchId: branch.id } }),
     ]);
     const cost = new Map(stocks.map((s) => [s.itemId, num(s.avgCost)]));
     return products.map((p) => {
-      const unitCost = Math.round(p.recipe.reduce((s, l) => s + num(l.quantity) * (cost.get(l.inventoryItemId) ?? 0), 0));
+      const recipeCost = (lines: { inventoryItemId: string; quantity: Prisma.Decimal }[]) =>
+        lines.reduce((s, l) => s + num(l.quantity) * (cost.get(l.inventoryItemId) ?? 0), 0);
+      const unitCost = Math.round(recipeCost(p.recipe) + p.comboItems.reduce((s, c) => s + recipeCost(c.product.recipe) * c.quantity, 0));
       return {
         id: p.id,
         name: p.name,
@@ -172,7 +174,7 @@ export class ReportsService {
         cost: unitCost,
         margin: p.price - unitCost,
         marginPct: p.price ? Math.round(((p.price - unitCost) / p.price) * 1000) / 10 : 0,
-        hasRecipe: p.recipe.length > 0,
+        hasRecipe: p.recipe.length > 0 || p.comboItems.some((c) => c.product.recipe.length > 0),
       };
     });
   }

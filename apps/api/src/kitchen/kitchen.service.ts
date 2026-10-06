@@ -8,6 +8,8 @@ export interface KitchenTicketItem {
   name: string;
   quantity: number;
   modifiers: string[];
+  /** Combo: productos que incluye */
+  components?: string[];
   notes?: string | null;
 }
 

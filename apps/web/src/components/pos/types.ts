@@ -1,5 +1,5 @@
 export interface MenuOption { id: string; name: string; priceDelta: number }
-export interface MenuGroup { id: string; name: string; minSelect: number; maxSelect: number; options: MenuOption[] }
+export interface MenuGroup { id: string; name: string; minSelect: number; maxSelect: number; allowRepeat?: boolean; options: MenuOption[] }
 export interface MenuProduct {
   id: string;
   name: string;
@@ -7,6 +7,8 @@ export interface MenuProduct {
   price: number;
   imageUrl: string | null;
   categoryId: string | null;
+  isCombo?: boolean;
+  comboItems?: { name: string; quantity: number }[];
   modifierGroups: MenuGroup[];
 }
 export interface Menu {
