@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+uploads/
+coverage/
+.DS_Store
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+uploads-test/
+backups/

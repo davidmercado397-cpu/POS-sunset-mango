@@ -1,0 +1,38 @@
+# Producción en VPS. El servidor web del VPS (Nginx/Apache) maneja el dominio y HTTPS
+# y redirige el tráfico a 127.0.0.1:${APP_PORT:-3000}. Ver docker/nginx.example.conf.
+services:
+  app:
+    build: .
+    image: pos-sunset-mango:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pos}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-pos}?schema=public
+    ports:
+      # Solo escucha en localhost: el acceso público pasa por el servidor web del VPS.
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-pos}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  uploads:
