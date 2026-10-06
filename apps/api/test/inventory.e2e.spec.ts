@@ -1,7 +1,7 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { client, createApp, createSuperAdmin, resetDb, setupTenant } from './helpers';
+import { client, createApp, createSuperAdmin, loginAs, resetDb, setupTenant } from './helpers';
 
 describe('Inventario, compras y traslados', () => {
   let app: NestExpressApplication;
@@ -84,5 +84,45 @@ describe('Inventario, compras y traslados', () => {
     await other.admin.get('/suppliers').expect(403);
     await other.admin.get('/transfers').expect(403);
     await other.admin.get('/inventory/stock').expect(200);
+  });
+
+  it('el administrador corrige entradas y mermas, y fija el costo promedio', async () => {
+    const vasos = (await ctx.admin.post('/inventory/items', { name: 'Vasos', type: 'PRODUCT', unit: 'und' }).expect(201)).body.id;
+    // Entrada cargada sin precio y con cantidad equivocada.
+    await ctx.admin.post('/inventory/adjust', { mode: 'IN', lines: [{ itemId: vasos, quantity: 10 }] }).expect(201);
+    await ctx.admin.post('/inventory/adjust', { mode: 'WASTE', lines: [{ itemId: vasos, quantity: 2 }] }).expect(201);
+    expect(await stockOf(ctx.branchId, vasos)).toEqual({ quantity: 8, avgCost: 0 });
+
+    const kardex = async () => (await ctx.admin.get(`/inventory/movements?itemId=${vasos}`).expect(200)).body;
+    const [waste, entry] = await kardex();
+    await ctx.admin.patch(`/inventory/movements/${entry.id}`, { unitCost: 500 }).expect(400); // falta el motivo
+    await ctx.admin.patch(`/inventory/movements/${entry.id}`, { quantity: 12, unitCost: 500, reason: 'Llegaron 12 y no se puso precio' }).expect(200);
+    expect(await stockOf(ctx.branchId, vasos)).toEqual({ quantity: 10, avgCost: 500 });
+    let rows = await kardex();
+    expect(rows.map((m: { quantity: number; balanceAfter: number }) => [m.quantity, m.balanceAfter])).toEqual([[-2, 10], [12, 12]]);
+    expect(rows[1].note).toContain('Corregido');
+
+    await ctx.admin.patch(`/inventory/movements/${waste.id}`, { quantity: 1, reason: 'Solo se rompió uno' }).expect(200);
+    await ctx.admin.patch(`/inventory/movements/${waste.id}`, { unitCost: 10, reason: 'no aplica' }).expect(400);
+    expect((await stockOf(ctx.branchId, vasos)).quantity).toBe(11);
+    rows = await kardex();
+    expect(rows[0].balanceAfter).toBe(11);
+
+    // Un conteo físico no se edita: se hace otro conteo.
+    await ctx.admin.post('/inventory/adjust', { mode: 'COUNT', lines: [{ itemId: vasos, quantity: 9 }] }).expect(201);
+    const count = (await kardex())[0];
+    await ctx.admin.patch(`/inventory/movements/${count.id}`, { quantity: 1, reason: 'error' }).expect(400);
+
+    await ctx.admin.put(`/inventory/stock/${vasos}/cost`, { avgCost: 650, reason: 'Precio actualizado' }).expect(200);
+    expect((await stockOf(ctx.branchId, vasos)).avgCost).toBe(650);
+    expect(await prisma.auditLog.count({ where: { action: { in: ['inventory.movement_corrected', 'inventory.cost_set'] } } })).toBe(3);
+
+    // Sin el permiso de corrección (administrador de sede) no se puede.
+    const roles = await ctx.admin.get('/admin/roles').expect(200);
+    const sede = roles.body.roles.find((r: { name: string }) => r.name === 'Administrador de sede');
+    expect(sede.permissions).not.toContain('inventory.edit');
+    await ctx.admin.post('/admin/users', { fullName: 'Sede', username: 'sede@inv.com', password: 'Secreta123!', roleId: sede.id, branchIds: [ctx.branchId] }).expect(201);
+    const other = client(app, await loginAs(app, 'sede@inv.com'), ctx.branchId);
+    await other.put(`/inventory/stock/${vasos}/cost`, { avgCost: 1 }).expect(403);
   });
 });

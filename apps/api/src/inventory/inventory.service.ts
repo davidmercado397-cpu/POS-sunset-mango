@@ -5,7 +5,7 @@ import { CashService } from '../cash/cash.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
 import { dayRange, num, round3, tenantOf } from '../common/util';
 import { PrismaService } from '../prisma/prisma.service';
-import { AdjustDto, InventoryItemDto, PurchaseDto, SupplierDto, TransferDto } from './inventory.dto';
+import { AdjustDto, EditMovementDto, InventoryItemDto, PurchaseDto, SetCostDto, SupplierDto, TransferDto } from './inventory.dto';
 import { StockService } from './stock.service';
 
 @Injectable()
@@ -116,6 +116,86 @@ export class InventoryService {
       balanceAfter: num(r.balanceAfter),
       userName: r.userId ? names.get(r.userId) ?? '' : '',
     }));
+  }
+
+  /**
+   * Corrige una entrada manual (cantidad y costo) o una merma (cantidad).
+   * Actualiza la existencia, el costo promedio y los saldos del kardex desde ese movimiento en adelante.
+   */
+  async editMovement(user: AuthUser, branch: BranchContext, id: string, dto: EditMovementDto) {
+    const tenantId = tenantOf(user);
+    if (dto.quantity === undefined && dto.unitCost === undefined) throw new BadRequestException('Indica la cantidad o el costo corregido');
+    const result = await this.prisma.$transaction(async (tx) => {
+      const mv = await tx.stockMovement.findFirst({ where: { id, tenantId, branchId: branch.id } });
+      if (!mv) throw new NotFoundException('Movimiento no encontrado');
+      if (mv.type !== 'INITIAL' && mv.type !== 'WASTE') {
+        throw new BadRequestException('Solo se pueden corregir entradas manuales y mermas. Para otros casos haz un conteo físico');
+      }
+      if (mv.type === 'WASTE' && dto.unitCost !== undefined) throw new BadRequestException('A una merma solo se le corrige la cantidad');
+
+      const sign = mv.type === 'INITIAL' ? 1 : -1;
+      const oldQty = num(mv.quantity);
+      const oldCost = num(mv.unitCost);
+      const newQty = dto.quantity !== undefined ? round3(sign * dto.quantity) : oldQty;
+      const newCost = dto.unitCost !== undefined ? dto.unitCost : oldCost;
+
+      // Bloquea la existencia del ítem mientras se recalcula su kardex.
+      await tx.$queryRaw`SELECT 1 FROM "Stock" WHERE "itemId" = ${mv.itemId} AND "branchId" = ${branch.id} FOR UPDATE`;
+      await tx.stockMovement.update({ where: { id }, data: { quantity: newQty, unitCost: newCost } });
+      const stock = await this.recalculate(tx, mv.itemId, branch.id);
+      const note = [mv.note, `Corregido: ${dto.reason.trim()}`].filter(Boolean).join(' · ').slice(0, 500);
+      await tx.stockMovement.update({ where: { id }, data: { note } });
+      return { itemId: mv.itemId, before: { quantity: oldQty, unitCost: oldCost }, after: { quantity: newQty, unitCost: newCost }, stock };
+    });
+    await this.audit.log({
+      tenantId, branchId: branch.id, userId: user.id, action: 'inventory.movement_corrected', entity: 'StockMovement', entityId: id,
+      data: { reason: dto.reason.trim(), before: result.before, after: result.after },
+    });
+    return result;
+  }
+
+  /**
+   * Recorre el kardex del ítem en orden y recalcula saldos, existencia y costo promedio ponderado.
+   * Las entradas con costo (manuales, compras, traslados recibidos, anulaciones) mueven el promedio;
+   * las salidas y los ajustes de conteo lo conservan.
+   */
+  private async recalculate(tx: Prisma.TransactionClient, itemId: string, branchId: string) {
+    const movements = await tx.stockMovement.findMany({ where: { itemId, branchId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    const costed = new Set(['INITIAL', 'PURCHASE', 'TRANSFER_IN', 'VOID']);
+    let q = 0;
+    let avg = 0;
+    for (const m of movements) {
+      const qty = num(m.quantity);
+      if (qty > 0 && costed.has(m.type)) {
+        const cost = num(m.unitCost);
+        avg = q <= 0 ? cost : Math.round(((q * avg + qty * cost) / (q + qty)) * 100) / 100;
+      }
+      q = round3(q + qty);
+      if (num(m.balanceAfter) !== q) await tx.stockMovement.update({ where: { id: m.id }, data: { balanceAfter: q } });
+    }
+    await tx.stock.upsert({
+      where: { itemId_branchId: { itemId, branchId } },
+      create: { itemId, branchId, quantity: q, avgCost: avg },
+      update: { quantity: q, avgCost: avg },
+    });
+    return { quantity: q, avgCost: avg };
+  }
+
+  /** Fija el costo promedio de un ítem en la sede (ej. existencias cargadas sin precio). */
+  async setCost(user: AuthUser, branch: BranchContext, itemId: string, dto: SetCostDto) {
+    const tenantId = tenantOf(user);
+    await this.assertItems(tenantId, [itemId]);
+    const before = await this.prisma.stock.findUnique({ where: { itemId_branchId: { itemId, branchId: branch.id } } });
+    const stock = await this.prisma.stock.upsert({
+      where: { itemId_branchId: { itemId, branchId: branch.id } },
+      create: { itemId, branchId: branch.id, quantity: 0, avgCost: dto.avgCost },
+      update: { avgCost: dto.avgCost },
+    });
+    await this.audit.log({
+      tenantId, branchId: branch.id, userId: user.id, action: 'inventory.cost_set', entity: 'InventoryItem', entityId: itemId,
+      data: { from: num(before?.avgCost), to: dto.avgCost, reason: dto.reason?.trim() },
+    });
+    return { itemId, quantity: num(stock.quantity), avgCost: num(stock.avgCost) };
   }
 
   // ───────── Proveedores ─────────

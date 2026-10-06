@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Modal } from '../../components/Modal';
 import { MoneyInput } from '../../components/MoneyInput';
-import { Badge, Button, Checkbox, EmptyState, Field, Input, PageHeader, Select, Table, Tabs } from '../../components/ui';
+import { Badge, Button, Checkbox, EmptyState, Field, Input, PageHeader, Select, Table, Tabs, Textarea } from '../../components/ui';
 import { api } from '../../lib/api';
 import { formatCOP, formatDateTime, formatQty, todayISO } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
@@ -41,6 +41,8 @@ function StockTab() {
   const [search, setSearch] = useState('');
   const [onlyLow, setOnlyLow] = useState(false);
   const [adjusting, setAdjusting] = useState<'COUNT' | 'WASTE' | 'IN' | null>(null);
+  const [costing, setCosting] = useState<StockRow | null>(null);
+  const noCost = (stock.data ?? []).filter((r) => r.isActive && r.quantity > 0 && r.avgCost === 0).length;
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (stock.data ?? []).filter((r) => r.isActive && (!onlyLow || r.low) && (!q || r.name.toLowerCase().includes(q)));
@@ -63,6 +65,11 @@ function StockTab() {
           </>
         )}
       </div>
+      {noCost > 0 && can('inventory.edit') && (
+        <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {noCost} ítem(s) tienen existencias sin costo, por eso el valor del inventario no es real. Corrige el costo con el lápiz junto al costo promedio, o corrige la entrada en el Kardex.
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <Checkbox label={<span className="inline-flex items-center gap-1">Solo stock bajo {lowCount > 0 && <Badge tone="red">{lowCount}</Badge>}</span>} checked={onlyLow} onChange={(e) => setOnlyLow(e.target.checked)} />
         <span className="text-slate-600">Valor del inventario: <b>{formatCOP(totalValue)}</b></span>
@@ -79,15 +86,43 @@ function StockTab() {
                 </td>
                 <td className={`text-right font-semibold tabular-nums ${r.quantity < 0 ? 'text-red-700' : ''}`}>{formatQty(r.quantity)} {r.unit}</td>
                 <td className="text-right text-slate-500 tabular-nums">{formatQty(r.minStock)}</td>
-                <td className="text-right tabular-nums">{formatCOP(r.avgCost)}</td>
+                <td className="text-right whitespace-nowrap tabular-nums">
+                  {r.quantity > 0 && r.avgCost === 0 ? <Badge tone="amber">Sin costo</Badge> : formatCOP(r.avgCost)}
+                  {can('inventory.edit') && (
+                    <button className="ml-1 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => setCosting(r)} aria-label={`Corregir costo de ${r.name}`}>
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
+                </td>
                 <td className="text-right tabular-nums">{formatCOP(r.value)}</td>
               </tr>
             ))}
           </tbody>
         </Table>
       )}
+      {costing && <CostModal row={costing} onClose={() => setCosting(null)} />}
       {adjusting && stock.data && <AdjustModal mode={adjusting} rows={stock.data.filter((r) => r.isActive)} onClose={() => setAdjusting(null)} />}
     </div>
+  );
+}
+
+function CostModal({ row, onClose }: { row: StockRow; onClose: () => void }) {
+  const [avgCost, setAvgCost] = useState(row.avgCost);
+  const [reason, setReason] = useState('');
+  const save = useApiMutation(() => api(`/inventory/stock/${row.id}/cost`, { method: 'PUT', json: { avgCost, reason: reason || undefined } }), {
+    invalidate: [['inventory']], success: 'Costo actualizado',
+  });
+  return (
+    <Modal open size="sm" onClose={onClose} title={`Costo de ${row.name}`}
+      footer={<Button loading={save.isPending} onClick={() => save.mutate(undefined, { onSuccess: onClose })}>Guardar</Button>}>
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">Existencia: <b>{formatQty(row.quantity)} {row.unit}</b>. El costo es por unidad ({row.unit}).</p>
+        <Field label="Costo promedio por unidad"><MoneyInput value={avgCost} onChange={setAvgCost} autoFocus /></Field>
+        <p className="text-sm text-slate-600">Valor del inventario: <b>{formatCOP(Math.round(Math.max(0, row.quantity) * avgCost))}</b></p>
+        <Field label="Motivo (opcional)"><Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} /></Field>
+        <p className="text-xs text-slate-500">Si el error fue en una entrada, es mejor corregirla en el Kardex: así el historial queda correcto.</p>
+      </div>
+    </Modal>
   );
 }
 
@@ -194,10 +229,11 @@ function ItemModal({ item, onClose }: { item: InventoryItem | null; onClose: () 
   );
 }
 
-interface Movement { id: string; type: string; quantity: number; unitCost: number; balanceAfter: number; note: string | null; createdAt: string; userName: string; item: { name: string; unit: string } }
+interface Movement { id: string; itemId: string; type: string; quantity: number; unitCost: number; balanceAfter: number; note: string | null; createdAt: string; userName: string; item: { name: string; unit: string } }
 
 function KardexTab() {
-  const { branchId } = useAuth();
+  const { branchId, can } = useAuth();
+  const [editing, setEditing] = useState<Movement | null>(null);
   const items = useApi<InventoryItem[]>(['inventory', 'items'], '/inventory/items');
   const [itemId, setItemId] = useState('');
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 86400_000 - 5 * 3600_000).toISOString().slice(0, 10));
@@ -215,9 +251,10 @@ function KardexTab() {
         <Field label="Desde"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="Hasta"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       </div>
+      {editing && <EditMovementModal movement={editing} onClose={() => setEditing(null)} />}
       {rows.data?.length === 0 ? <EmptyState>Sin movimientos en este rango.</EmptyState> : (
         <Table>
-          <thead><tr><th>Fecha</th><th>Ítem</th><th>Movimiento</th><th className="text-right">Cantidad</th><th className="text-right">Saldo</th><th className="text-right">Costo unit.</th><th>Detalle</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Ítem</th><th>Movimiento</th><th className="text-right">Cantidad</th><th className="text-right">Saldo</th><th className="text-right">Costo unit.</th><th>Detalle</th><th /></tr></thead>
           <tbody>
             {rows.data?.map((m) => (
               <tr key={m.id}>
@@ -228,11 +265,47 @@ function KardexTab() {
                 <td className="text-right tabular-nums">{formatQty(m.balanceAfter)}</td>
                 <td className="text-right tabular-nums">{formatCOP(m.unitCost)}</td>
                 <td className="text-xs text-slate-500">{[m.note, m.userName].filter(Boolean).join(' · ')}</td>
+                <td className="text-right">
+                  {can('inventory.edit') && (m.type === 'INITIAL' || m.type === 'WASTE') && (
+                    <Button variant="ghost" onClick={() => setEditing(m)}><Pencil className="size-4" /> Corregir</Button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </Table>
       )}
     </div>
+  );
+}
+
+function EditMovementModal({ movement, onClose }: { movement: Movement; onClose: () => void }) {
+  const isEntry = movement.type === 'INITIAL';
+  const [quantity, setQuantity] = useState(String(Math.abs(movement.quantity)));
+  const [unitCost, setUnitCost] = useState(movement.unitCost);
+  const [reason, setReason] = useState('');
+  const save = useApiMutation(
+    () => api(`/inventory/movements/${movement.id}`, {
+      method: 'PATCH',
+      json: { quantity: Number(quantity), ...(isEntry ? { unitCost } : {}), reason },
+    }),
+    { invalidate: [['inventory']], success: 'Movimiento corregido' },
+  );
+  return (
+    <Modal open size="sm" onClose={onClose} title={`Corregir ${isEntry ? 'entrada' : 'merma'} de ${movement.item.name}`}
+      footer={<Button loading={save.isPending} disabled={!(Number(quantity) > 0) || reason.trim().length < 3} onClick={() => save.mutate(undefined, { onSuccess: onClose })}>Guardar corrección</Button>}>
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Registrado el {formatDateTime(movement.createdAt)}: {formatQty(Math.abs(movement.quantity))} {movement.item.unit}
+          {isEntry && ` a ${formatCOP(movement.unitCost)} c/u`}.
+        </p>
+        <Field label={`Cantidad (${movement.item.unit})`}>
+          <Input type="number" inputMode="decimal" min={0} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        </Field>
+        {isEntry && <Field label="Costo unitario"><MoneyInput value={unitCost} onChange={setUnitCost} /></Field>}
+        <Field label="Motivo de la corrección"><Textarea value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} /></Field>
+        <p className="text-xs text-slate-500">Se recalculan la existencia, el costo promedio y los saldos del kardex. La corrección queda en la auditoría.</p>
+      </div>
+    </Modal>
   );
 }

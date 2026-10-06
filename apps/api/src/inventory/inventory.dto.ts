@@ -116,3 +116,24 @@ export class TransferDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300) @ValidateNested({ each: true }) @Type(() => TransferLineDto)
   items: TransferLineDto[];
 }
+
+export class EditMovementDto {
+  /** Cantidad corregida (positiva). Para mermas es la cantidad que salió. */
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 3 }) @Min(0.001) @Max(1_000_000_000)
+  quantity?: number;
+
+  /** Costo unitario corregido (solo entradas manuales) */
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1_000_000_000)
+  unitCost?: number;
+
+  @IsString() @MinLength(3, { message: 'Escribe el motivo de la corrección' }) @MaxLength(300)
+  reason: string;
+}
+
+export class SetCostDto {
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1_000_000_000)
+  avgCost: number;
+
+  @IsOptional() @IsString() @MaxLength(300)
+  reason?: string;
+}

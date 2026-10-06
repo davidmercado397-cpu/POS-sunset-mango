@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { AuthUser, BranchContext } from '../common/auth-user';
 import { CurrentBranch, RequireModule, RequireTenantModule } from '../common/decorators/branch.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequireAnyPermission, RequirePermissions } from '../common/decorators/permissions.decorator';
-import { AdjustDto, InventoryItemDto, PurchaseDto, SupplierDto, TransferDto } from './inventory.dto';
+import { AdjustDto, EditMovementDto, InventoryItemDto, PurchaseDto, SetCostDto, SupplierDto, TransferDto } from './inventory.dto';
 import { InventoryService } from './inventory.service';
 
 @Controller()
@@ -58,6 +58,20 @@ export class InventoryController {
     @Query('to') to?: string,
   ) {
     return this.inventory.movements(user, branch, itemId, from, to);
+  }
+
+  @Patch('inventory/movements/:id')
+  @RequireModule('inventory')
+  @RequirePermissions('inventory.edit')
+  editMovement(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('id', ParseUUIDPipe) id: string, @Body() dto: EditMovementDto) {
+    return this.inventory.editMovement(user, branch, id, dto);
+  }
+
+  @Put('inventory/stock/:itemId/cost')
+  @RequireModule('inventory')
+  @RequirePermissions('inventory.edit')
+  setCost(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('itemId', ParseUUIDPipe) itemId: string, @Body() dto: SetCostDto) {
+    return this.inventory.setCost(user, branch, itemId, dto);
   }
 
   // Proveedores
