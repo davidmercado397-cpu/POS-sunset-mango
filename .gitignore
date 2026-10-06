@@ -2,7 +2,9 @@ node_modules/
 dist/
 .env
 *.log
-uploads/
+# Fotos subidas por los usuarios (no el código de apps/api/src/uploads)
+/uploads/
+apps/api/uploads/
 coverage/
 .DS_Store
 tsconfig.tsbuildinfo
