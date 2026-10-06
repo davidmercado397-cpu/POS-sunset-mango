@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { BranchGuard } from './common/guards/branch.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -48,6 +49,7 @@ function staticModules(): DynamicModule[] {
     AuthModule,
     PlatformModule,
     AdminModule,
+    CatalogModule,
   ],
   controllers: [HealthController],
   providers: [

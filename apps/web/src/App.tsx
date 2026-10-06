@@ -6,6 +6,7 @@ import { AppLayout } from './components/AppLayout';
 import { SUPER_ADMIN_NAV, TENANT_NAV, type NavItem } from './components/navigation';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/admin/AdminPage';
+import { CatalogPage } from './pages/catalog/CatalogPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
@@ -15,6 +16,7 @@ import { TenantsPage } from './pages/platform/TenantsPage';
 const PAGES: Record<string, ReactNode> = {
   '/negocios': <TenantsPage />,
   '/admin': <AdminPage />,
+  '/catalogo': <CatalogPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */
