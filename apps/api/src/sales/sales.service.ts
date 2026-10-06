@@ -202,6 +202,7 @@ export class SalesService {
       await tx.sale.update({ where: { id: sale.id }, data: { subtotal: { decrement: item.lineTotal } } });
       await this.audit.log({ tenantId, branchId: branch.id, userId: user.id, action: 'order.item_removed', entity: 'Sale', entityId: sale.id, data: { product: item.productName, quantity: item.quantity } });
     });
+    this.kitchen.notify(branch.id);
     return this.detail(user, branch, id);
   }
 
@@ -230,6 +231,7 @@ export class SalesService {
       const lines = await this.consumptionFromItems(tx, items);
       await this.consumeInventory(tx, user, branch, sale.id, lines);
     });
+    this.kitchen.notify(branch.id);
     return this.detail(user, branch, id);
   }
 

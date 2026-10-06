@@ -25,7 +25,7 @@ describe('Caja, POS, inventario y mesas', () => {
   beforeEach(async () => {
     await resetDb(prisma);
     await createSuperAdmin(prisma);
-    ({ admin, branchId, tenantId } = await setupTenant(app, ['tips', 'inventory', 'kitchen', 'tables']));
+    ({ admin, branchId, tenantId } = await setupTenant(app, ['tips', 'inventory', 'kitchen', 'tables', 'reports']));
     pan = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Pan', unit: 'und' } })).id;
     carne = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Carne', unit: 'g' } })).id;
     const cat = await admin.post('/catalog/categories', { name: 'Hamburguesas' }).expect(201);
@@ -140,5 +140,26 @@ describe('Caja, POS, inventario y mesas', () => {
     expect(await stock(pan)).toBe(0); // inventario apagado: no descuenta
     expect(await prisma.kitchenTicket.count({ where: { saleId: sale.body.id } })).toBe(0);
     await admin.get('/orders').expect(403);
+  });
+
+  it('reportes: totales, métodos, productos y costo de lo vendido', async () => {
+    await admin.post('/inventory/adjust', { mode: 'IN', lines: [{ itemId: pan, quantity: 10, unitCost: 1000 }, { itemId: carne, quantity: 1000, unitCost: 20 }] }).expect(201);
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    await sell().expect(201); // 2 grandes: costo = 2*1000 + 300*20 = 8000
+    const voided = await sell({ tipAmount: 0, tipMethod: undefined, payments: [{ method: 'CASH', amount: 36000 }] }).expect(201);
+    await admin.post(`/sales/${voided.body.id}/void`, { reason: 'error' }).expect(201);
+
+    const r = await admin.get('/reports/summary').expect(200);
+    expect(r.body.totals).toMatchObject({ salesCount: 1, salesTotal: 36000, tips: 2000, voidedCount: 1, cost: 8000, grossProfit: 28000 });
+    expect(r.body.byMethod).toEqual([
+      { method: 'CASH', sales: 20000, tips: 0 },
+      { method: 'TRANSFER', sales: 0, tips: 0 },
+      { method: 'QR_BOLD', sales: 16000, tips: 2000 },
+    ]);
+    expect(r.body.topProducts[0]).toMatchObject({ name: 'Hamburguesa', quantity: 2, total: 36000, category: 'Hamburguesas' });
+
+    const margins = await admin.get('/reports/margins').expect(200);
+    expect(margins.body[0]).toMatchObject({ price: 15000, cost: 3000, margin: 12000 });
+    await admin.get('/reports/summary?scope=all').expect(200);
   });
 });

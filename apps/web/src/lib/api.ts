@@ -22,6 +22,8 @@ export class ApiError extends Error {
   }
 }
 
+export const getAccessToken = () => accessToken;
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
 }

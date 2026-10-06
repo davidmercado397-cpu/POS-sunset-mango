@@ -26,13 +26,13 @@ export const TENANT_NAV: NavItem[] = [
   { to: '/pos', label: 'Vender', icon: ShoppingCart, anyPermission: ['pos.sell'], module: 'pos' },
   { to: '/caja', label: 'Caja', icon: Wallet, anyPermission: ['cash.open', 'cash.close', 'cash.view', 'cash.movements'], module: 'cash' },
   { to: '/ventas', label: 'Ventas', icon: Receipt, anyPermission: ['sales.view'], module: 'pos' },
-  { to: '/mesas', label: 'Mesas', icon: Grid3x3, anyPermission: ['tables.manage'], module: 'tables', phase: 9 },
-  { to: '/cocina', label: 'Cocina', icon: ChefHat, anyPermission: ['kitchen.view'], module: 'kitchen', phase: 7 },
+  { to: '/mesas', label: 'Mesas', icon: Grid3x3, anyPermission: ['tables.manage'], module: 'tables' },
+  { to: '/cocina', label: 'Cocina', icon: ChefHat, anyPermission: ['kitchen.view'], module: 'kitchen' },
   { to: '/catalogo', label: 'Catálogo', icon: Utensils, anyPermission: ['catalog.manage'] },
   { to: '/inventario', label: 'Inventario', icon: Package, anyPermission: ['inventory.view'], module: 'inventory' },
   { to: '/compras', label: 'Compras', icon: ShoppingBag, anyPermission: ['purchases.manage'], module: 'purchases' },
   { to: '/traslados', label: 'Traslados', icon: ArrowLeftRight, anyPermission: ['transfers.manage'], module: 'transfers' },
-  { to: '/reportes', label: 'Reportes', icon: BarChart3, anyPermission: ['reports.view'], module: 'reports', phase: 8 },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3, anyPermission: ['reports.view'], module: 'reports' },
   { to: '/admin', label: 'Administración', icon: Settings, anyPermission: ['branches.manage', 'users.manage', 'roles.manage', 'settings.manage', 'expenses.categories', 'audit.view'] },
 ];
 

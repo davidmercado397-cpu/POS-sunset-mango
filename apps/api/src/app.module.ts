@@ -20,6 +20,7 @@ import { StockModule } from './inventory/stock.module';
 import { KitchenModule } from './kitchen/kitchen.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
 import { UploadsModule } from './uploads/uploads.module';
 
@@ -60,6 +61,7 @@ function staticModules(): DynamicModule[] {
     CashModule,
     SalesModule,
     InventoryModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

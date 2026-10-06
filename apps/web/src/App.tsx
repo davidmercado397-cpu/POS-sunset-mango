@@ -9,14 +9,17 @@ import { AdminPage } from './pages/admin/AdminPage';
 import { CashPage } from './pages/cash/CashPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
+import { KitchenPage } from './pages/kitchen/KitchenPage';
 import { PurchasesPage } from './pages/inventory/PurchasesPage';
 import { TransfersPage } from './pages/inventory/TransfersPage';
 import { PosPage } from './pages/pos/PosPage';
+import { ReportsPage } from './pages/reports/ReportsPage';
 import { SalesPage } from './pages/sales/SalesPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { TenantsPage } from './pages/platform/TenantsPage';
+import { TablesPage } from './pages/tables/TablesPage';
 
 /** Pantalla de cada ruta del menú. Las que aún no existen muestran "Próximamente". */
 const PAGES: Record<string, ReactNode> = {
@@ -29,6 +32,9 @@ const PAGES: Record<string, ReactNode> = {
   '/inventario': <InventoryPage />,
   '/compras': <PurchasesPage />,
   '/traslados': <TransfersPage />,
+  '/cocina': <KitchenPage />,
+  '/reportes': <ReportsPage />,
+  '/mesas': <TablesPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */

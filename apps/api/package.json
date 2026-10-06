@@ -12,7 +12,9 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "node dist/prisma/seed.js",
     "seed:dev": "tsx prisma/seed.ts",
-    "test:db": "prisma migrate deploy"
+    "test:db": "prisma migrate deploy",
+    "demo:dev": "tsx prisma/demo.ts",
+    "demo": "node dist/prisma/demo.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.7",
