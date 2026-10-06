@@ -127,7 +127,7 @@ function SalesReport({ canAll }: { canAll: boolean }) {
             <Stat label="Anuladas" value={formatCOP(t.voidedTotal)} hint={`${t.voidedCount} ventas`} />
             <Stat label="Gastos" value={formatCOP(t.expenses)} hint={[t.expensesTransfer ? `Por transferencia ${formatCOP(t.expensesTransfer)}` : '', t.withdrawals ? `Salidas ${formatCOP(t.withdrawals)}` : ''].filter(Boolean).join(' · ') || undefined} />
             {t.purchasesCount > 0 && <Stat label="Compras" value={formatCOP(t.purchases)} hint={`${t.purchasesCount} compras`} />}
-            {t.grossProfit != null && <Stat label="Utilidad bruta" value={formatCOP(t.grossProfit)} hint={`Costo de lo vendido ${formatCOP(t.cost ?? 0)}`} />}
+            {t.grossProfit != null && (t.cost ?? 0) > 0 && <Stat label="Utilidad bruta" value={formatCOP(t.grossProfit)} hint={`Costo de lo vendido ${formatCOP(t.cost ?? 0)}`} />}
             <Stat label="Diferencias de caja" value={formatCOP(totalDiff)} hint={`${t.cashSessions} cierres`} />
           </div>
 

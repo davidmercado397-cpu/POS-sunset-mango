@@ -98,6 +98,12 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
   - Transferencia y QR Bold: esperado vs. confirmado.
   - Diferencia (sobrante o faltante) por método, observaciones y resumen del cierre.
 - Una sola caja abierta por sede (se garantiza en la base de datos).
+- Los gastos pueden pagarse con **efectivo de la caja** (descuentan el efectivo esperado) o por **transferencia** (se registran y reportan, pero no cambian el efectivo esperado).
+
+### 5.3.1 Cierre mensual
+- Consolida, por sede, todos los cierres diarios del mes: ventas, métodos de pago, propinas, gastos (efectivo y transferencia), compras, utilidad bruta, anulaciones y la diferencia de cada día.
+- Se puede cerrar cuando el mes terminó y no queda ninguna caja abierta de ese mes. Al cerrarlo se guarda una copia fija con quién lo cerró, cuándo y sus observaciones; no se puede repetir.
+- Mientras el mes no se cierra, los valores se muestran como preliminares. Permiso: "Hacer el cierre mensual".
 
 ### 5.4 Ventas
 - Historial con filtros. **Anulación solo por el admin de sede**, con motivo obligatorio; la anulación revierte el inventario y queda en auditoría.
@@ -121,10 +127,11 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 
 ### 5.8 Pedidos en línea (domicilios)
 - Enlace público por negocio: `/pedir/<negocio>`. No pide usuario ni contraseña. Si hay varias sedes con el módulo activo, el cliente elige una.
-- El cliente arma el pedido con fotos y variantes, elige domicilio o recoger, deja nombre, celular y dirección, e indica cómo pagará (efectivo con "¿con cuánto pagas?", transferencia o datáfono/QR Bold).
+- El cliente arma el pedido con fotos y variantes, elige domicilio o recoger y deja nombre, celular y dirección. Paga por **transferencia**: ve los datos bancarios de la sede y envía el comprobante por WhatsApp. El pago en línea con **Bold** queda listo para configurar: las llaves se guardan cifradas y falta implementar la API.
 - La sede recibe pedidos solo si los tiene activados **y** su caja está abierta. Por sede se configuran el valor del domicilio, el pedido mínimo, el WhatsApp y un mensaje para los clientes.
-- Al confirmar, la comanda llega a la pantalla de cocina en tiempo real y el pedido aparece en el panel "Pedidos en línea" con un sonido.
-- Estados: nuevo → en preparación → listo → en camino (solo domicilios) → entregado. Se puede rechazar o cancelar con un motivo que el cliente ve.
+- El pedido aparece en el panel "Pedidos en línea" con un sonido y **debe aceptarse**. Solo al aceptarlo la comanda pasa a la pantalla de cocina en tiempo real.
+- El personal marca "Pago recibido" cuando confirma la transferencia.
+- Estados: por aceptar → en preparación → listo → en camino (solo domicilios) → entregado. Se puede rechazar (antes de aceptar) o cancelar con un motivo que el cliente ve.
 - "Entregado y cobrado" crea la venta en la caja abierta (el domicilio va como línea aparte) y descuenta el inventario.
 - El cliente sigue su pedido con un código de 6 caracteres. La página se actualiza sola y tiene botón de WhatsApp.
 - Protección contra abusos: límite de pedidos por minuto por IP, campo trampa contra bots y máximo 3 pedidos activos por teléfono.
@@ -180,5 +187,12 @@ Montos en COP como **enteros** (sin decimales).
 | Inventario | Insumos y productos terminados, recetas en productos y variantes, compras con costo, traslados |
 | Gastos | Categorías fijas del admin + texto libre |
 | Super Admin | Crear/suspender negocios + Seguridad (módulos disponibles por negocio) |
+| Ingreso | Con correo (`cajero1@negocio1.com`) o usuario simple; único en toda la plataforma |
+| Cierre de caja | Diario por sede, más cierre mensual consolidado |
+| Gastos | Efectivo de caja o transferencia |
+| Pedidos en línea | Se aceptan antes de pasar a cocina; tienda cerrada cuando la caja está cerrada; pago por transferencia (Bold pendiente) |
+| Mesas | El mesero puede quitar productos ya enviados |
+| Inventario negativo | Se permite vender y se alerta |
+| Propinas | Se registran por venta |
 | HTTPS | Lo maneja el servidor web del VPS |
 | Conectividad / idioma | Siempre en línea; español; COP sin decimales |

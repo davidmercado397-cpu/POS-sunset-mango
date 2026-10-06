@@ -10,20 +10,26 @@ import { api } from '../../lib/api';
 import { formatCOP, formatDateTime, formatTime, PAYMENT_LABELS, todayISO } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
 import { CashSummaryView, Stat } from './CashSummaryView';
+import { MonthlyClose } from './MonthlyClose';
 import { METHODS, MOVEMENT_LABELS, type ByMethod, type CashMovement, type CashSession, type CashSummary } from './types';
 
 interface Current { session: CashSession | null; summary?: CashSummary; openOrders?: number; denominations: number[] }
 
 export function CashPage() {
   const { can } = useAuth();
-  const [tab, setTab] = useState<'current' | 'history'>('current');
+  const [tab, setTab] = useState<'current' | 'history' | 'monthly'>('current');
+  const tabs = [
+    { value: 'current' as const, label: 'Caja del día' },
+    ...(can('cash.view') ? [{ value: 'history' as const, label: 'Cierres diarios' }] : []),
+    ...(can('cash.view') || can('cash.monthly') ? [{ value: 'monthly' as const, label: 'Cierre mensual' }] : []),
+  ];
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Caja" subtitle="Apertura, gastos, cuadre y cierre del día" />
-      {can('cash.view') && (
-        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'current', label: 'Caja actual' }, { value: 'history', label: 'Historial de cierres' }]} />
-      )}
-      {tab === 'current' ? <CurrentCash /> : <CashHistory />}
+      <PageHeader title="Caja" subtitle="Cuadre diario y cierre mensual" />
+      {tabs.length > 1 && <Tabs value={tab} onChange={setTab} tabs={tabs} />}
+      {tab === 'current' && <CurrentCash />}
+      {tab === 'history' && <CashHistory />}
+      {tab === 'monthly' && <MonthlyClose />}
     </div>
   );
 }
@@ -68,7 +74,7 @@ function CurrentCash() {
       {summary && <CashSummaryView summary={summary} />}
 
       <div>
-        <h2 className="mb-2 font-semibold">Movimientos de efectivo</h2>
+        <h2 className="mb-2 font-semibold">Gastos y movimientos</h2>
         <MovementsList movements={session.movements ?? []} />
       </div>
 

@@ -683,3 +683,20 @@ model OnlineOrder {
 
   @@index([branchId, status, createdAt])
 }
+
+/// Cierre mensual de una sede: consolida los cierres diarios del mes y guarda una copia fija.
+model MonthlyClose {
+  id         String   @id @default(uuid())
+  tenantId   String
+  branchId   String
+  year       Int
+  month      Int
+  /// Copia del consolidado al momento del cierre
+  summary    Json
+  notes      String?
+  closedById String
+  closedAt   DateTime @default(now())
+
+  @@unique([branchId, year, month])
+  @@index([tenantId])
+}

@@ -14,13 +14,13 @@ Todas las fases del plan están construidas y probadas:
 | Administración del negocio | Sedes con módulos por sede, usuarios, roles y permisos, marca (logo y colores), categorías de gastos, mesas y auditoría |
 | Catálogo | Categorías, productos con foto, variantes y adiciones con precio, disponibilidad por sede y receta |
 | POS | Venta por foto, variantes, pago combinado (efectivo, transferencia y QR Bold), propina opcional, cálculo del cambio |
-| Caja | Apertura con billetes y monedas, gastos, salidas y entradas, cuadre por método de pago y cierre con diferencias |
+| Caja | Apertura con billetes y monedas, gastos (en efectivo o por transferencia), salidas y entradas, cuadre diario por método de pago con diferencias y **cierre mensual** consolidado |
 | Ventas | Historial y anulación (devuelve el inventario; solo con la caja abierta) |
 | Inventario | Insumos y productos terminados, existencias por sede, costo promedio, conteo físico, mermas y kardex |
 | Compras y traslados | Compras con costo (opcionalmente pagadas con la caja), proveedores y traslados entre sedes |
 | Cocina | Pantalla de comandas en tiempo real con sonido y tiempos |
 | Mesas | Cuentas abiertas por mesa o por cliente; se agrega, se cobra o se anula |
-| Pedidos en línea | Enlace público **sin usuario** para domicilios y pedidos para recoger, con código QR, seguimiento del pedido para el cliente y panel del personal; la comanda llega a cocina |
+| Pedidos en línea | Enlace público **sin usuario** para domicilios y pedidos para recoger, con código QR. El cliente paga por transferencia y sigue su pedido. El personal acepta cada pedido y entonces la comanda pasa a cocina. Bold queda listo para configurar |
 | Reportes | Ventas por día, hora, método, producto, categoría, vendedor y sede; gastos, utilidad bruta, márgenes por producto y exportación CSV |
 
 ## Stack
@@ -61,7 +61,7 @@ docker compose exec app node dist/prisma/demo.js
 | `mesero@sunsetmango.com` | Mesero |
 | `cocina@sunsetmango.com` | Cocina |
 
-La contraseña de todos es `Demo12345`. Para ver la tienda pública abre `/pedir/sunset-mango-demo`; para recibir pedidos, la caja de la sede debe estar abierta.
+La contraseña de todos es `Demo12345`. La demo trae las ventas y los cierres diarios del mes anterior para probar los reportes y el cierre mensual. Para ver la tienda pública abre `/pedir/sunset-mango-demo`; para recibir pedidos, la caja de la sede debe estar abierta.
 
 **¿Olvidaste la contraseña del Super Admin?** Cambia `SUPERADMIN_PASSWORD` en `.env` y ejecuta `docker compose up -d`. El contenedor se reinicia y actualiza la clave.
 

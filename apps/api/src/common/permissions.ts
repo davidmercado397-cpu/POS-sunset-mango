@@ -23,6 +23,7 @@ export const PERMISSION_CATALOG = [
   { key: 'cash.close', label: 'Cerrar caja', group: 'Caja', module: 'cash' },
   { key: 'cash.movements', label: 'Registrar gastos y movimientos de efectivo', group: 'Caja', module: 'cash' },
   { key: 'cash.view', label: 'Ver historial de cierres', group: 'Caja', module: 'cash' },
+  { key: 'cash.monthly', label: 'Hacer el cierre mensual', group: 'Caja', module: 'cash' },
   { key: 'expenses.categories', label: 'Administrar categorías de gastos', group: 'Caja', module: 'cash' },
   // Inventario
   { key: 'inventory.view', label: 'Ver inventario', group: 'Inventario', module: 'inventory' },
@@ -59,7 +60,7 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
     description: 'Opera la sede: caja, anulaciones, inventario y reportes',
     permissions: [
       'catalog.view', 'pos.sell', 'sales.view', 'sales.void',
-      'cash.open', 'cash.close', 'cash.movements', 'cash.view',
+      'cash.open', 'cash.close', 'cash.movements', 'cash.view', 'cash.monthly',
       'inventory.view', 'inventory.adjust', 'purchases.manage', 'transfers.manage',
       'kitchen.view', 'tables.manage', 'reports.view', 'online.manage',
     ],
