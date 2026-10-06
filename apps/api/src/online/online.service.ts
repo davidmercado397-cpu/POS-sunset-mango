@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Branch, OnlineOrder, Prisma } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
+import { normalizeSubdomain, storeUrl, subdomainFromHost } from '../common/store-address';
+import { ENV, Env } from '../config/env';
 import { effectiveModules } from '../common/modules';
 import { dayRange, tenantOf } from '../common/util';
 import { KitchenService } from '../kitchen/kitchen.service';
@@ -24,7 +26,19 @@ export class OnlineService {
     private readonly kitchen: KitchenService,
     private readonly audit: AuditService,
     private readonly bold: BoldService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
+
+  /** ¿Este host es la tienda de algún negocio? Devuelve su identificador o null. */
+  async resolveHost(rawHost: string) {
+    const host = rawHost.toLowerCase().replace(/:\d+$/, '');
+    const sub = subdomainFromHost(host, this.env.publicStoreDomain);
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { isActive: true, OR: [{ storeDomain: host }, ...(sub ? [{ storeSubdomain: sub }] : [])] },
+      select: { slug: true, enabledModules: true },
+    });
+    return { store: tenant && tenant.enabledModules.includes('online') ? tenant.slug : null };
+  }
 
   // ───────── Público (sin usuario) ─────────
 
@@ -230,9 +244,16 @@ export class OnlineService {
   }
 
   async settings(branch: BranchContext) {
-    const b = await this.prisma.branch.findUniqueOrThrow({ where: { id: branch.id }, include: { tenant: { select: { slug: true } } } });
+    const b = await this.prisma.branch.findUniqueOrThrow({
+      where: { id: branch.id },
+      include: { tenant: { select: { slug: true, storeSubdomain: true, storeDomain: true } } },
+    });
     return {
       slug: b.tenant.slug,
+      storeUrl: storeUrl(b.tenant, this.env),
+      storeSubdomain: b.tenant.storeSubdomain,
+      storeDomain: b.tenant.storeDomain,
+      publicStoreDomain: this.env.publicStoreDomain ?? null,
       branchId: b.id,
       onlineAccepting: b.onlineAccepting,
       allowDelivery: b.allowDelivery,
@@ -257,6 +278,17 @@ export class OnlineService {
       },
     });
     await this.audit.log({ tenantId: tenantOf(user), branchId: branch.id, userId: user.id, action: 'online.settings', data: { ...dto } });
+    return this.settings(branch);
+  }
+
+  /** El negocio cambia el subdominio de su tienda (el dominio propio lo asigna el Super Admin). */
+  async updateSubdomain(user: AuthUser, branch: BranchContext, value: string) {
+    const tenantId = tenantOf(user);
+    const storeSubdomain = normalizeSubdomain(value);
+    const taken = await this.prisma.tenant.findFirst({ where: { storeSubdomain, id: { not: tenantId } } });
+    if (taken) throw new ConflictException('Ese subdominio ya está en uso');
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { storeSubdomain } });
+    await this.audit.log({ tenantId, userId: user.id, action: 'online.subdomain', data: { storeSubdomain } });
     return this.settings(branch);
   }
 

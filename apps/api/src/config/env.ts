@@ -30,6 +30,10 @@ export function loadEnv() {
     corsOrigin: process.env.CORS_ORIGIN || undefined,
     webDist: process.env.WEB_DIST || undefined,
     uploadsDir: process.env.UPLOADS_DIR ?? './uploads',
+    /** Dominio base de las tiendas en línea: cada negocio queda en <subdominio>.<este dominio> */
+    publicStoreDomain: (process.env.PUBLIC_STORE_DOMAIN || '').trim().toLowerCase().replace(/^\.+|\.+$/g, '') || undefined,
+    /** URL pública de la aplicación (para armar enlaces /pedir/<negocio> cuando no hay dominio de tiendas) */
+    publicAppUrl: (process.env.PUBLIC_APP_URL || '').trim().replace(/\/+$/, '') || undefined,
     maxLoginAttempts: Number(process.env.MAX_LOGIN_ATTEMPTS ?? 5),
     lockMinutes: Number(process.env.LOCK_MINUTES ?? 15),
   };

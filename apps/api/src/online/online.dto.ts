@@ -82,3 +82,8 @@ export class ConfirmPaymentDto {
   @IsOptional() @IsString() @MaxLength(80)
   reference?: string;
 }
+
+export class SubdomainDto {
+  @IsString() @MinLength(2) @MaxLength(40)
+  storeSubdomain: string;
+}

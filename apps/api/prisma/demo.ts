@@ -23,7 +23,7 @@ async function main() {
 
     await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
-        data: { name: 'Sunset Mango Demo', slug: 'sunset-mango-demo', brandName: 'Sunset Mango', enabledModules: modules, primaryColor: '#f97316', secondaryColor: '#9a3412' },
+        data: { name: 'Sunset Mango Demo', slug: 'sunset-mango-demo', storeSubdomain: 'sunsetmango', brandName: 'Sunset Mango', enabledModules: modules, primaryColor: '#f97316', secondaryColor: '#9a3412' },
       });
       const roles = Object.fromEntries(
         await Promise.all(

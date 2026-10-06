@@ -118,4 +118,39 @@ describe('Pedidos en línea', () => {
     await setupTenant(app, ['kitchen'], 'sin-online');
     await pub().get('/api/public/store/sin-online').expect(404);
   });
+
+  it('tienda por subdominio dinámico o dominio propio', async () => {
+    // Subdominio inicial = identificador del negocio ("tienda" está reservado, así que queda "tienda-1").
+    let settings = await ctx.admin.get('/online/settings').expect(200);
+    expect(settings.body).toMatchObject({ storeSubdomain: 'tienda-1', storeUrl: 'https://tienda-1.pedidos.test.co' });
+
+    const host = (h: string) => pub().get('/api/public/host').set('Host', h);
+    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: 'tienda' });
+    expect((await host('otra.pedidos.test.co')).body).toEqual({ store: null });
+    expect((await host('pos.midominio.com')).body).toEqual({ store: null });
+
+    // El negocio cambia su subdominio; validaciones y reservados.
+    await ctx.admin.put('/online/subdomain', { storeSubdomain: 'Sunset Mango!' }).expect(400);
+    await ctx.admin.put('/online/subdomain', { storeSubdomain: 'www' }).expect(400);
+    settings = await ctx.admin.put('/online/subdomain', { storeSubdomain: 'sunsetmango' }).expect(200);
+    expect(settings.body.storeUrl).toBe('https://sunsetmango.pedidos.test.co');
+    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: 'tienda' });
+    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: null });
+
+    // Otro negocio no puede tomar el mismo subdominio.
+    const other = await setupTenant(app, ['online'], 'otro-negocio');
+    await other.admin.put('/online/subdomain', { storeSubdomain: 'sunsetmango' }).expect(409);
+
+    // El Super Admin asigna un dominio propio.
+    await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { storeDomain: 'https://Pedidos.SunsetMango.com/' }).expect(200);
+    expect((await host('pedidos.sunsetmango.com')).body).toEqual({ store: 'tienda' });
+    expect((await ctx.admin.get('/online/settings')).body.storeUrl).toBe('https://pedidos.sunsetmango.com');
+    await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeDomain: 'pedidos.sunsetmango.com' }).expect(409);
+    await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { storeDomain: '' }).expect(200);
+    expect((await ctx.admin.get('/online/settings')).body.storeUrl).toBe('https://sunsetmango.pedidos.test.co');
+
+    // Un negocio suspendido o sin el módulo no responde en su subdominio.
+    await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { isActive: false }).expect(200);
+    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: null });
+  });
 });

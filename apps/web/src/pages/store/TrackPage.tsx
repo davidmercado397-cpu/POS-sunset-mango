@@ -7,6 +7,7 @@ import { formatCOP, formatTime, PAYMENT_LABELS } from '../../lib/format';
 import { useApi } from '../../lib/hooks';
 import { applyBrand } from '../../lib/theme';
 import type { StoreInfo } from './StorePage';
+import { useStoreBase } from './storeBase';
 
 interface Tracking {
   code: string;
@@ -26,7 +27,9 @@ interface Tracking {
 
 /** Seguimiento público del pedido por su código. */
 export function TrackPage() {
-  const { slug, code = '' } = useParams();
+  const params = useParams();
+  const code = params.code ?? '';
+  const { slug, base } = useStoreBase(params.slug ?? '');
   const { data, isError } = useApi<Tracking>(['track', code], `/public/orders/${code}`, { refetchInterval: 15_000 });
   const store = useApi<StoreInfo>(['store', slug], slug ? `/public/store/${slug}` : null);
   useEffect(() => { if (store.data) applyBrand(store.data.primaryColor, store.data.secondaryColor); }, [store.data]);
@@ -94,7 +97,7 @@ export function TrackPage() {
           <Button variant="secondary" className="w-full"><MessageCircle className="size-4" /> Escribir por WhatsApp</Button>
         </a>
       )}
-      <Link to={`/pedir/${slug}`} className="block text-center text-sm font-semibold text-brand-dark underline">Hacer otro pedido</Link>
+      <Link to={base || '/'} className="block text-center text-sm font-semibold text-brand-dark underline">Hacer otro pedido</Link>
     </div>
   );
 }

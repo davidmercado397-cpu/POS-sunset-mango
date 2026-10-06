@@ -13,6 +13,7 @@ import { api } from '../../lib/api';
 import { formatCOP } from '../../lib/format';
 import { useApi } from '../../lib/hooks';
 import { applyBrand } from '../../lib/theme';
+import { useStoreBase } from './storeBase';
 
 export interface StoreInfo {
   name: string;
@@ -41,7 +42,8 @@ function saveCustomer(data: Record<string, string>) {
 
 /** Tienda pública para pedidos a domicilio o para recoger. No requiere usuario. */
 export function StorePage() {
-  const { slug = '' } = useParams();
+  const params = useParams();
+  const { slug, base } = useStoreBase(params.slug ?? '');
   const store = useApi<StoreInfo>(['store', slug], `/public/store/${slug}`, { refetchInterval: 60_000 });
   const [branchId, setBranchId] = useState<string | null>(null);
 
@@ -67,7 +69,7 @@ export function StorePage() {
         </div>
         {branch && store.data.branches.length > 1 && <button className="text-sm font-semibold underline" onClick={() => setBranchId(null)}>Cambiar sede</button>}
       </header>
-      {!branch ? <BranchPicker store={store.data} onPick={setBranchId} /> : <StoreMenu slug={slug} branch={branch} paymentMethods={store.data.paymentMethods} />}
+      {!branch ? <BranchPicker store={store.data} onPick={setBranchId} /> : <StoreMenu slug={slug} base={base} branch={branch} paymentMethods={store.data.paymentMethods} />}
     </div>
   );
 }
@@ -91,7 +93,7 @@ function BranchPicker({ store, onPick }: { store: StoreInfo; onPick: (id: string
   );
 }
 
-function StoreMenu({ slug, branch, paymentMethods }: { slug: string; branch: StoreInfo['branches'][number]; paymentMethods: PaymentMethod[] }) {
+function StoreMenu({ slug, base, branch, paymentMethods }: { slug: string; base: string; branch: StoreInfo['branches'][number]; paymentMethods: PaymentMethod[] }) {
   const navigate = useNavigate();
   const data = useApi<Pick<Menu, 'categories' | 'products'>>(['store', slug, 'menu', branch.id], `/public/store/${slug}/menu?branchId=${branch.id}`);
   const cart = useCart();
@@ -117,7 +119,7 @@ function StoreMenu({ slug, branch, paymentMethods }: { slug: string; branch: Sto
       </Modal>
       {step === 'checkout' && (
         <CheckoutForm slug={slug} branch={branch} paymentMethods={paymentMethods} subtotal={cart.total} items={toApiItems(cart.lines)} onBack={() => setStep('cart')}
-          onPlaced={(code) => { cart.clear(); navigate(`/pedir/${slug}/pedido/${code}`); }} />
+          onPlaced={(code) => { cart.clear(); navigate(`${base}/pedido/${code}`); }} />
       )}
     </div>
   );

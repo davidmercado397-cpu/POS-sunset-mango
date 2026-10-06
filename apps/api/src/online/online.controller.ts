@@ -7,7 +7,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { PayDto } from '../sales/sales.dto';
-import { ConfirmPaymentDto, OnlineSettingsDto, OnlineStatusDto, PublicOrderDto, ReasonDto } from './online.dto';
+import { ConfirmPaymentDto, OnlineSettingsDto, OnlineStatusDto, PublicOrderDto, ReasonDto, SubdomainDto } from './online.dto';
 import { OnlineService } from './online.service';
 
 /** Tienda pública: no requiere usuario. */
@@ -15,6 +15,13 @@ import { OnlineService } from './online.service';
 @Public()
 export class PublicStoreController {
   constructor(private readonly online: OnlineService) {}
+
+  /** El frontend pregunta si el host actual es la tienda de un negocio (subdominio o dominio propio). */
+  @Get('host')
+  @SkipThrottle()
+  host(@Req() req: Request) {
+    return this.online.resolveHost(req.hostname || req.headers.host || '');
+  }
 
   @Get('store/:slug')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
@@ -82,6 +89,12 @@ export class OnlineController {
   @Get('settings')
   settings(@CurrentBranch() branch: BranchContext) {
     return this.online.settings(branch);
+  }
+
+  @Put('subdomain')
+  @RequirePermissions('online.manage', 'settings.manage')
+  subdomain(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Body() dto: SubdomainDto) {
+    return this.online.updateSubdomain(user, branch, dto.storeSubdomain);
   }
 
   @Put('settings')

@@ -36,7 +36,7 @@ interface OnlineOrder {
   rejectReason: string | null;
   createdAt: string;
 }
-interface Settings { slug: string; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null; transferInfo: string | null }
+interface Settings { slug: string; storeUrl: string; storeSubdomain: string | null; storeDomain: string | null; publicStoreDomain: string | null; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null; transferInfo: string | null }
 
 const STATUS: Record<Status, { label: string; tone: 'amber' | 'blue' | 'green' | 'brand' | 'slate' | 'red' }> = {
   NEW: { label: 'Por aceptar', tone: 'amber' }, ACCEPTED: { label: 'En preparación', tone: 'blue' }, READY: { label: 'Listo', tone: 'green' },
@@ -198,7 +198,14 @@ function SettingsTab() {
   const [form, setForm] = useState<Settings | null>(null);
   const [qr, setQr] = useState('');
   useEffect(() => { if (data) setForm(data); }, [data]);
-  const url = data ? `${window.location.origin}/pedir/${data.slug}` : '';
+  const url = data ? (data.storeUrl.startsWith('http') ? data.storeUrl : `${window.location.origin}${data.storeUrl}`) : '';
+  const { can } = useAuth();
+  const [sub, setSub] = useState('');
+  useEffect(() => { if (data?.storeSubdomain) setSub(data.storeSubdomain); }, [data?.storeSubdomain]);
+  const saveSub = useApiMutation(() => api('/online/subdomain', { method: 'PUT', json: { storeSubdomain: sub } }), {
+    invalidate: [['online', 'settings']],
+    success: 'Subdominio actualizado',
+  });
   useEffect(() => { if (url) QRCode.toDataURL(url, { width: 360, margin: 1 }).then(setQr).catch(() => setQr('')); }, [url]);
   const save = useApiMutation(
     () => api('/online/settings', { method: 'PUT', json: { onlineAccepting: form!.onlineAccepting, allowDelivery: form!.allowDelivery, allowPickup: form!.allowPickup, deliveryFee: form!.deliveryFee, minOrder: form!.minOrder, onlineMessage: form!.onlineMessage ?? undefined, whatsapp: form!.whatsapp ?? undefined, transferInfo: form!.transferInfo ?? undefined } }),
@@ -210,12 +217,25 @@ function SettingsTab() {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="space-y-4">
         <p className="font-semibold">Enlace público de la tienda</p>
-        <p className="text-sm text-slate-500">Compártelo en WhatsApp, Instagram o imprime el QR. No requiere usuario ni contraseña.</p>
+        <p className="text-sm text-slate-500">Compártelo en WhatsApp, Instagram o imprime el QR. No requiere usuario ni contraseña. Si cambias el subdominio, vuelve a descargar el QR.</p>
         <div className="flex gap-2">
           <Input readOnly value={url} onFocus={(e) => e.target.select()} />
           <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success('Enlace copiado'))} aria-label="Copiar"><Copy className="size-4" /></Button>
           <a href={url} target="_blank" rel="noreferrer"><Button variant="secondary" aria-label="Abrir"><ExternalLink className="size-4" /></Button></a>
         </div>
+        {data?.publicStoreDomain && !data.storeDomain && can('settings.manage') && (
+          <Field label="Subdominio de la tienda">
+            <div className="flex items-center gap-2">
+              <Input value={sub} onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              <span className="shrink-0 text-sm text-slate-500">.{data.publicStoreDomain}</span>
+              <Button variant="secondary" loading={saveSub.isPending} disabled={!sub || sub === data.storeSubdomain} onClick={() => saveSub.mutate()}>Cambiar</Button>
+            </div>
+          </Field>
+        )}
+        {data?.storeDomain && <p className="text-xs text-slate-500">Tu tienda usa el dominio propio <b>{data.storeDomain}</b>, asignado por el proveedor.</p>}
+        {data && !data.publicStoreDomain && !data.storeDomain && (
+          <p className="text-xs text-slate-500">Cuando el proveedor configure el dominio de tiendas, aquí podrás elegir un subdominio propio.</p>
+        )}
         {qr && (
           <div className="flex flex-col items-center gap-2">
             <img src={qr} alt="Código QR de la tienda" className="size-56 rounded-xl border" />

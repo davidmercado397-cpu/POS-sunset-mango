@@ -44,7 +44,13 @@ Todas las fases del plan están construidas y probadas:
    Al iniciar, el contenedor aplica las migraciones y crea el Super Admin.
 3. Configura el servidor web del VPS como proxy inverso hacia `127.0.0.1:3000` con HTTPS.
    Hay un ejemplo de Nginx (incluye WebSocket para la pantalla de cocina) en [`docker/nginx.example.conf`](./docker/nginx.example.conf).
-4. Respaldos diarios: programa [`docker/backup.sh`](./docker/backup.sh) en el crontab del VPS.
+4. **Tienda en línea por subdominio (opcional, recomendado):**
+   - En `.env` define `PUBLIC_STORE_DOMAIN=pedidos.tudominio.com`.
+   - En tu DNS crea un registro comodín `*.pedidos.tudominio.com` que apunte al VPS.
+   - Saca un certificado comodín y agrega el bloque de subdominios del ejemplo de Nginx.
+
+   Con eso, cada negocio queda automáticamente en `<subdominio>.pedidos.tudominio.com`, sin tocar el servidor por cada negocio nuevo. El subdominio se cambia desde la aplicación: el negocio lo hace en Pedidos en línea → Configuración, y el Super Admin en Negocios → General. El Super Admin también puede asignar un dominio propio (por ejemplo `pedidos.minegocio.com`), que necesita su propio registro DNS y certificado. El enlace `/pedir/<negocio>` sigue funcionando siempre.
+5. Respaldos diarios: programa [`docker/backup.sh`](./docker/backup.sh) en el crontab del VPS.
 
 ### Datos de demostración
 
@@ -77,6 +83,8 @@ La contraseña de todos es `Demo12345`. La demo trae las ventas, los cierres dia
 | `COOKIE_SECURE` | `true` cuando se sirve por HTTPS (producción) |
 | `TRUST_PROXY` | Número de proxies delante de la app (1 = el servidor web del VPS) |
 | `MAX_LOGIN_ATTEMPTS` / `LOCK_MINUTES` | Bloqueo tras intentos fallidos (5 intentos / 15 min) |
+| `PUBLIC_STORE_DOMAIN` | Dominio base de las tiendas (ej. `pedidos.tudominio.com`); cada negocio queda en un subdominio |
+| `PUBLIC_APP_URL` | URL pública de la app (ej. `https://pos.tudominio.com`), para los enlaces `/pedir/<negocio>` |
 | `ENCRYPTION_KEY` | (Opcional) Clave para cifrar llaves de terceros como Bold. Si no se define se usa `JWT_ACCESS_SECRET`; si la cambias, las llaves deben ingresarse de nuevo |
 
 ## Desarrollo local

@@ -1,10 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { hashPassword } from '../auth/password';
 import { AuthUser } from '../common/auth-user';
 import { CORE_MODULES, isValidModule, MODULE_CATALOG } from '../common/modules';
 import { SYSTEM_ROLES } from '../common/permissions';
+import { normalizeDomain, normalizeSubdomain, storeUrl } from '../common/store-address';
 import { slugify } from '../common/util';
+import { ENV, Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTenantDto, UpdateTenantDto } from './platform.dto';
 
@@ -15,6 +17,7 @@ export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   modules() {
@@ -51,6 +54,8 @@ export class PlatformService {
     if (!tenant) throw new NotFoundException('Negocio no encontrado');
     return {
       ...tenant,
+      storeUrl: storeUrl(tenant, this.env),
+      publicStoreDomain: this.env.publicStoreDomain ?? null,
       users: tenant.users.map((u) => ({
         id: u.id,
         fullName: u.fullName,
@@ -77,7 +82,7 @@ export class PlatformService {
 
     const tenant = await this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
-        data: { name: dto.name.trim(), slug, enabledModules: modules, brandName: dto.name.trim() },
+        data: { name: dto.name.trim(), slug, enabledModules: modules, brandName: dto.name.trim(), storeSubdomain: await this.freeSubdomain(slug) },
       });
       const roles = await Promise.all(
         SYSTEM_ROLES.map((r) =>
@@ -111,11 +116,19 @@ export class PlatformService {
     const tenant = await this.prisma.tenant.findUnique({ where: { id } });
     if (!tenant) throw new NotFoundException('Negocio no encontrado');
     const modules = dto.enabledModules ? this.cleanModules(dto.enabledModules) : undefined;
+    const storeSubdomain = dto.storeSubdomain !== undefined ? normalizeSubdomain(dto.storeSubdomain) : undefined;
+    const storeDomain = dto.storeDomain !== undefined ? (dto.storeDomain.trim() ? normalizeDomain(dto.storeDomain) : null) : undefined;
+    if (storeSubdomain && (await this.prisma.tenant.findFirst({ where: { storeSubdomain, id: { not: id } } }))) {
+      throw new ConflictException('Ese subdominio ya está en uso');
+    }
+    if (storeDomain && (await this.prisma.tenant.findFirst({ where: { storeDomain, id: { not: id } } }))) {
+      throw new ConflictException('Ese dominio ya está asignado a otro negocio');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.tenant.update({
         where: { id },
-        data: { name: dto.name?.trim(), isActive: dto.isActive, enabledModules: modules },
+        data: { name: dto.name?.trim(), isActive: dto.isActive, enabledModules: modules, storeSubdomain, storeDomain },
       });
       // Si se retira un módulo del negocio, se apaga también en todas sus sedes.
       if (modules) {
@@ -148,6 +161,20 @@ export class PlatformService {
       this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
     ]);
     await this.audit.log({ userId: actor.id, tenantId, action: 'platform.user_password_reset', entity: 'User', entityId: userId });
+  }
+
+  /** El subdominio inicial es el identificador del negocio (o una variante si está reservado/ocupado). */
+  private async freeSubdomain(slug: string): Promise<string | null> {
+    const base = slug.slice(0, 36);
+    for (const candidate of [base, `${base}-1`, `${base}-2`, `${base}-${Date.now().toString(36)}`]) {
+      try {
+        const sub = normalizeSubdomain(candidate);
+        if (!(await this.prisma.tenant.findFirst({ where: { storeSubdomain: sub } }))) return sub;
+      } catch {
+        /* reservado o inválido: se prueba el siguiente */
+      }
+    }
+    return null;
   }
 
   private cleanModules(modules: string[]): string[] {

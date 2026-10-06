@@ -134,7 +134,8 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 - Logo, nombre comercial, color primario y secundario; se aplican a toda la interfaz del negocio con variables CSS.
 
 ### 5.8 Pedidos en línea (domicilios)
-- Enlace público por negocio: `/pedir/<negocio>`. No pide usuario ni contraseña. Si hay varias sedes con el módulo activo, el cliente elige una.
+- Enlace público por negocio, **dinámico**. Cada negocio queda en `<subdominio>.<PUBLIC_STORE_DOMAIN>`, gracias a un DNS y un certificado comodín que se configuran una sola vez. El subdominio se puede cambiar desde la aplicación. El Super Admin puede asignar un dominio propio, y `/pedir/<negocio>` queda como respaldo.
+- Enlace de respaldo: `/pedir/<negocio>`. No pide usuario ni contraseña. Si hay varias sedes con el módulo activo, el cliente elige una.
 - El cliente arma el pedido con fotos y variantes, elige domicilio o recoger y deja nombre, celular y dirección. Paga por **transferencia**: ve los datos bancarios de la sede y envía el comprobante por WhatsApp. El pago en línea con **Bold** queda listo para configurar: las llaves se guardan cifradas y falta implementar la API.
 - La sede recibe pedidos solo si los tiene activados **y** su caja está abierta. Por sede se configuran el valor del domicilio, el pedido mínimo, el WhatsApp y un mensaje para los clientes.
 - El pedido aparece en el panel "Pedidos en línea" con un sonido y **debe aceptarse**. Solo al aceptarlo la comanda pasa a la pantalla de cocina en tiempo real.

@@ -24,6 +24,10 @@ interface TenantDetail {
   id: string;
   name: string;
   slug: string;
+  storeUrl: string;
+  storeSubdomain: string | null;
+  storeDomain: string | null;
+  publicStoreDomain: string | null;
   isActive: boolean;
   enabledModules: string[];
   branches: { id: string; name: string; isActive: boolean }[];
@@ -177,9 +181,33 @@ function useUpdateTenant(id: string) {
 
 function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
   const [name, setName] = useState(tenant.name);
+  const [sub, setSub] = useState(tenant.storeSubdomain ?? '');
+  const [domain, setDomain] = useState(tenant.storeDomain ?? '');
   const update = useUpdateTenant(tenant.id);
+  const url = tenant.storeUrl.startsWith('http') ? tenant.storeUrl : `${window.location.origin}${tenant.storeUrl}`;
   return (
     <div className="space-y-5">
+      <Card className="space-y-3">
+        <p className="font-semibold">Dirección de la tienda en línea</p>
+        <p className="text-sm"><a href={url} target="_blank" rel="noreferrer" className="font-medium text-brand-dark underline">{url}</a></p>
+        {tenant.publicStoreDomain ? (
+          <Field label="Subdominio">
+            <div className="flex items-center gap-2">
+              <Input value={sub} onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              <span className="shrink-0 text-sm text-slate-500">.{tenant.publicStoreDomain}</span>
+            </div>
+          </Field>
+        ) : (
+          <p className="text-xs text-slate-500">Define PUBLIC_STORE_DOMAIN en el servidor para dar a cada negocio un subdominio automático.</p>
+        )}
+        <Field label="Dominio propio (opcional)">
+          <Input value={domain} placeholder="pedidos.minegocio.com" onChange={(e) => setDomain(e.target.value)} />
+        </Field>
+        <p className="text-xs text-slate-500">El dominio propio debe apuntar (registro DNS) al servidor y tener su certificado HTTPS en el servidor web.</p>
+        <div className="flex justify-end">
+          <Button loading={update.isPending} onClick={() => update.mutate({ ...(tenant.publicStoreDomain && sub ? { storeSubdomain: sub } : {}), storeDomain: domain })}>Guardar dirección</Button>
+        </div>
+      </Card>
       <Field label="Nombre">
         <div className="flex gap-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} />

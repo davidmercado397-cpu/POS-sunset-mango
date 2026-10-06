@@ -39,6 +39,13 @@ export class UpdateTenantDto {
 
   @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
   enabledModules?: string[];
+
+  @IsOptional() @IsString() @MaxLength(40)
+  storeSubdomain?: string;
+
+  /** Vacío para quitar el dominio propio */
+  @IsOptional() @IsString() @MaxLength(253)
+  storeDomain?: string;
 }
 
 export class ResetPasswordDto {

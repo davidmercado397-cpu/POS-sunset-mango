@@ -16,6 +16,10 @@ model Tenant {
   name             String
   slug             String   @unique
   isActive         Boolean  @default(true)
+  /// Subdominio de la tienda en línea: <storeSubdomain>.<PUBLIC_STORE_DOMAIN>
+  storeSubdomain   String?  @unique
+  /// Dominio propio opcional para la tienda (ej. pedidos.minegocio.com)
+  storeDomain      String?  @unique
   /// Módulos que el Super Admin habilitó para este negocio (ver src/common/modules.ts)
   enabledModules   String[] @default([])
   // Marca
