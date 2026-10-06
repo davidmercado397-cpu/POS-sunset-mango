@@ -14,6 +14,7 @@ export const APP_MODULES = {
   KITCHEN: 'kitchen',
   TABLES: 'tables',
   REPORTS: 'reports',
+  ONLINE: 'online',
 } as const;
 
 export type AppModule = (typeof APP_MODULES)[keyof typeof APP_MODULES];
@@ -30,6 +31,7 @@ export const MODULE_CATALOG: { key: AppModule; label: string; description: strin
   { key: 'kitchen', label: 'Comandas a cocina', description: 'Pantalla de cocina en tiempo real', core: false },
   { key: 'tables', label: 'Mesas y pedidos abiertos', description: 'Cuentas abiertas por mesa', core: false },
   { key: 'reports', label: 'Reportes', description: 'Reportes de ventas, caja e inventario', core: false },
+  { key: 'online', label: 'Pedidos en línea', description: 'Enlace público para domicilios y pedidos para recoger', core: false },
 ];
 
 export const ALL_MODULE_KEYS = MODULE_CATALOG.map((m) => m.key);

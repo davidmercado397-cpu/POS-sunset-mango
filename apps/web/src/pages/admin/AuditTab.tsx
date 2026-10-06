@@ -30,6 +30,10 @@ const ACTION_LABELS: Record<string, string> = {
   'transfer.sent': 'Traslado enviado',
   'transfer.received': 'Traslado recibido',
   'transfer.cancelled': 'Traslado cancelado',
+  'online.rejected': 'Pedido en línea rechazado',
+  'online.cancelled': 'Pedido en línea cancelado',
+  'online.settings': 'Configuración de pedidos en línea',
+  'order.item_removed': 'Producto quitado de una cuenta',
 };
 
 export function AuditTab() {

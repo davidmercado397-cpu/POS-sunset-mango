@@ -38,18 +38,26 @@ model Tenant {
 
 /// Sede / punto de venta
 model Branch {
-  id            String   @id @default(uuid())
-  tenantId      String
-  name          String
-  address       String?
-  phone         String?
-  isActive      Boolean  @default(true)
+  id              String   @id @default(uuid())
+  tenantId        String
+  name            String
+  address         String?
+  phone           String?
+  isActive        Boolean  @default(true)
   /// Módulos activos en la sede (subconjunto de Tenant.enabledModules)
-  activeModules String[] @default([])
+  activeModules   String[] @default([])
   /// Consecutivo de ventas de la sede
-  saleSeq       Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  saleSeq         Int      @default(0)
+  // Pedidos en línea
+  onlineAccepting Boolean  @default(true)
+  allowDelivery   Boolean  @default(true)
+  allowPickup     Boolean  @default(true)
+  deliveryFee     Int      @default(0)
+  minOrder        Int      @default(0)
+  onlineMessage   String?
+  whatsapp        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users        UserBranch[]
@@ -57,6 +65,7 @@ model Branch {
   sales        Sale[]
   stocks       Stock[]
   tables       DiningTable[]
+  onlineOrders OnlineOrder[]
 
   @@index([tenantId])
 }
@@ -417,18 +426,20 @@ enum KitchenStatus {
 }
 
 model KitchenTicket {
-  id        String        @id @default(uuid())
-  tenantId  String
-  branchId  String
-  saleId    String
-  status    KitchenStatus @default(PENDING)
+  id            String        @id @default(uuid())
+  tenantId      String
+  branchId      String
+  saleId        String?
+  onlineOrderId String?
+  status        KitchenStatus @default(PENDING)
   /// Copia de los ítems enviados [{ name, quantity, modifiers[], notes }]
-  items     Json
-  label     String
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  items         Json
+  label         String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
-  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale        Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  onlineOrder OnlineOrder? @relation(fields: [onlineOrderId], references: [id], onDelete: Cascade)
 
   @@index([branchId, status])
 }
@@ -600,4 +611,57 @@ model TransferItem {
   unitCost   Decimal @default(0) @db.Decimal(14, 2)
 
   transfer Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────── Pedidos en línea ─────────────────────────
+
+enum OnlineOrderStatus {
+  NEW
+  ACCEPTED
+  READY
+  DISPATCHED
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum OnlineOrderType {
+  DELIVERY
+  PICKUP
+}
+
+/// Pedido hecho por un cliente desde el enlace público (sin usuario)
+model OnlineOrder {
+  id            String            @id @default(uuid())
+  tenantId      String
+  branchId      String
+  /// Código corto para seguimiento público
+  code          String            @unique
+  status        OnlineOrderStatus @default(NEW)
+  type          OnlineOrderType
+  customerName  String
+  phone         String
+  address       String?
+  addressNotes  String?
+  notes         String?
+  /// Método con el que el cliente dice que pagará
+  paymentMethod PaymentMethod
+  /// Efectivo: con cuánto paga (para llevar cambio)
+  payWith       Int?
+  /// Copia de los ítems con precios calculados en el servidor
+  items         Json
+  subtotal      Int
+  deliveryFee   Int               @default(0)
+  total         Int
+  rejectReason  String?
+  /// Venta generada al cobrar
+  saleId        String?           @unique
+  ip            String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  kitchenTickets KitchenTicket[]
+
+  @@index([branchId, status, createdAt])
 }

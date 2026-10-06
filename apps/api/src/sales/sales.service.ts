@@ -11,7 +11,7 @@ import { AddItemsDto, CreateSaleDto, OpenOrderDto, PayDto, SaleItemDto } from '.
 
 type Tx = Prisma.TransactionClient;
 
-interface PricedLine {
+export interface PricedLine {
   productId: string;
   productName: string;
   unitPrice: number;
@@ -305,6 +305,55 @@ export class SalesService {
     return this.detail(user, branch, id);
   }
 
+  /**
+   * Cobra un pedido en línea: crea la venta con los ítems y precios que vio el cliente,
+   * agrega el domicilio como línea aparte y descuenta el inventario.
+   */
+  async completeOnlineOrder(user: AuthUser, branch: BranchContext, orderId: string, dto: PayDto) {
+    const tenantId = tenantOf(user);
+    const session = await this.cash.openSession(branch.id);
+    const saleId = await this.prisma.$transaction(async (tx) => {
+      await this.cash.lockOpen(tx, session.id);
+      const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "OnlineOrder" WHERE id = ${orderId} AND "branchId" = ${branch.id} FOR UPDATE`;
+      if (!rows.length) throw new NotFoundException('Pedido no encontrado');
+      const order = await tx.onlineOrder.findUniqueOrThrow({ where: { id: orderId } });
+      if (['COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status)) throw new BadRequestException('El pedido ya fue cerrado');
+
+      const snapshot = order.items as unknown as Omit<PricedLine, 'consumption' | 'sendToKitchen'>[];
+      const pay = this.validatePayments(branch, order.total, dto);
+      const number = await this.nextNumber(tx, branch.id);
+      const sale = await tx.sale.create({
+        data: {
+          tenantId,
+          branchId: branch.id,
+          cashSessionId: session.id,
+          number,
+          status: 'COMPLETED',
+          customerName: `${order.customerName} (${order.type === 'DELIVERY' ? 'domicilio' : 'para recoger'})`,
+          notes: [`Pedido en línea ${order.code}`, order.phone, order.address].filter(Boolean).join(' · '),
+          subtotal: order.total,
+          tipAmount: pay.tipAmount,
+          tipMethod: pay.tipMethod,
+          createdById: user.id,
+          completedAt: new Date(),
+          payments: { create: pay.payments },
+        },
+      });
+      const lines = snapshot.map((l) => ({ ...l, sendToKitchen: false, consumption: new Map<string, number>() }));
+      if (order.deliveryFee > 0) {
+        lines.push({ productId: null as unknown as string, productName: 'Domicilio', unitPrice: order.deliveryFee, quantity: 1, lineTotal: order.deliveryFee, notes: null, modifiers: [], sendToKitchen: false, consumption: new Map() });
+      }
+      await this.createItems(tx, sale.id, lines, true);
+      const items = await tx.saleItem.findMany({ where: { saleId: sale.id, productId: { not: null } }, include: { modifiers: true } });
+      await this.consumeInventory(tx, user, branch, sale.id, await this.consumptionFromItems(tx, items));
+      await tx.onlineOrder.update({ where: { id: orderId }, data: { status: 'COMPLETED', saleId: sale.id } });
+      await tx.kitchenTicket.updateMany({ where: { onlineOrderId: orderId, status: { in: ['PENDING', 'PREPARING', 'READY'] } }, data: { status: 'DELIVERED' } });
+      return sale.id;
+    });
+    this.kitchen.notify(branch.id);
+    return this.detail(user, branch, saleId);
+  }
+
   assertCanRemoveItems(user: AuthUser) {
     if (!user.permissions.includes('sales.void')) {
       throw new ForbiddenException('Solo el administrador de la sede puede quitar productos ya enviados');
@@ -314,7 +363,7 @@ export class SalesService {
   // ───────── Internos ─────────
 
   /** Valida productos, variantes y calcula precios en el servidor (nunca se confía en el cliente). */
-  private async priceItems(tx: Tx, tenantId: string, branch: BranchContext, items: SaleItemDto[]): Promise<PricedLine[]> {
+  async priceItems(tx: Tx, tenantId: string, branch: BranchContext, items: SaleItemDto[]): Promise<PricedLine[]> {
     const ids = [...new Set(items.map((i) => i.productId))];
     const products = await tx.product.findMany({
       where: { id: { in: ids }, tenantId, isActive: true, NOT: { disabledBranchIds: { has: branch.id } } },

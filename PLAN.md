@@ -1,6 +1,6 @@
 # Plan — POS Sunset Mango (SaaS para restaurantes)
 
-> Estado: **v3 — aprobado**. Incluye las respuestas de las tres rondas de preguntas. Fase 1 completada.
+> Estado: **v3 — aprobado**. Incluye las respuestas de las tres rondas de preguntas. Todas las fases completadas, más el módulo de pedidos en línea.
 
 ## 1. Visión general
 
@@ -72,6 +72,7 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 | Comandas a cocina | Pantalla de cocina (KDS) en tablet, en tiempo real |
 | Mesas y pedidos abiertos | Plano de mesas y cuentas abiertas (fase posterior; el modelo y la bandera quedan listos desde ya) |
 | Reportes | Reportes de ventas, caja, inventario |
+| Pedidos en línea | Enlace público sin usuario para domicilios y pedidos para recoger; la comanda llega a cocina |
 
 ## 5. Funcionalidades por módulo
 
@@ -118,7 +119,17 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 ### 5.7 Marca por negocio
 - Logo, nombre comercial, color primario y secundario; se aplican a toda la interfaz del negocio con variables CSS.
 
-### 5.8 Reportes
+### 5.8 Pedidos en línea (domicilios)
+- Enlace público por negocio: `/pedir/<negocio>`. No pide usuario ni contraseña. Si hay varias sedes con el módulo activo, el cliente elige una.
+- El cliente arma el pedido con fotos y variantes, elige domicilio o recoger, deja nombre, celular y dirección, e indica cómo pagará (efectivo con "¿con cuánto pagas?", transferencia o datáfono/QR Bold).
+- La sede recibe pedidos solo si los tiene activados **y** su caja está abierta. Por sede se configuran el valor del domicilio, el pedido mínimo, el WhatsApp y un mensaje para los clientes.
+- Al confirmar, la comanda llega a la pantalla de cocina en tiempo real y el pedido aparece en el panel "Pedidos en línea" con un sonido.
+- Estados: nuevo → en preparación → listo → en camino (solo domicilios) → entregado. Se puede rechazar o cancelar con un motivo que el cliente ve.
+- "Entregado y cobrado" crea la venta en la caja abierta (el domicilio va como línea aparte) y descuenta el inventario.
+- El cliente sigue su pedido con un código de 6 caracteres. La página se actualiza sola y tiene botón de WhatsApp.
+- Protección contra abusos: límite de pedidos por minuto por IP, campo trampa contra bots y máximo 3 pedidos activos por teléfono.
+
+### 5.9 Reportes
 - Ventas por día y rango, por método de pago, por producto y categoría, propinas, gastos, historial de cierres con diferencias y valorización de inventario.
 
 ## 6. Modelo de datos (resumen)

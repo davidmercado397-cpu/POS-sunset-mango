@@ -30,7 +30,9 @@ async function main() {
           SYSTEM_ROLES.map(async (r) => [r.name, await tx.role.create({ data: { tenantId: tenant.id, name: r.name, description: r.description, permissions: r.permissions, isSystem: true } })] as const),
         ),
       );
-      const centro = await tx.branch.create({ data: { tenantId: tenant.id, name: 'Sede Centro', address: 'Calle 10 # 5-20', activeModules: modules } });
+      const centro = await tx.branch.create({
+        data: { tenantId: tenant.id, name: 'Sede Centro', address: 'Calle 10 # 5-20', activeModules: modules, deliveryFee: 4000, minOrder: 15000, whatsapp: '3001234567', onlineMessage: 'Domicilios de 11 a. m. a 9 p. m.' },
+      });
       const norte = await tx.branch.create({ data: { tenantId: tenant.id, name: 'Sede Norte', activeModules: modules.filter((m) => m !== 'tables') } });
 
       const users = [

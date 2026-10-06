@@ -22,12 +22,13 @@ const METHODS: { method: PaymentMethod; icon: typeof Banknote }[] = [
 ];
 
 /** Cobro con uno o varios métodos de pago, propina opcional y cálculo del cambio. */
-export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfirm }: {
+export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfirm, defaultMethod = 'CASH', defaultReceived = 0 }: {
   subtotal: number; tipsEnabled: boolean; loading: boolean; onClose: () => void; onConfirm: (p: PaymentPayload) => void;
+  defaultMethod?: PaymentMethod; defaultReceived?: number;
 }) {
   const [tip, setTip] = useState(0);
   const [tipMethod, setTipMethod] = useState<PaymentMethod | ''>('');
-  const [rows, setRows] = useState<Row[]>([{ method: 'CASH', amount: subtotal, received: 0, reference: '' }]);
+  const [rows, setRows] = useState<Row[]>([{ method: defaultMethod, amount: subtotal, received: defaultMethod === 'CASH' ? defaultReceived : 0, reference: '' }]);
   const total = subtotal + tip;
   const paid = rows.reduce((s, r) => s + r.amount, 0);
   const remaining = total - paid;

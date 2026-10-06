@@ -33,6 +33,8 @@ export const PERMISSION_CATALOG = [
   // Cocina y mesas
   { key: 'kitchen.view', label: 'Pantalla de cocina', group: 'Cocina', module: 'kitchen' },
   { key: 'tables.manage', label: 'Mesas y pedidos abiertos', group: 'Mesas', module: 'tables' },
+  // Pedidos en línea
+  { key: 'online.manage', label: 'Gestionar pedidos en línea', group: 'Pedidos en línea', module: 'online' },
   // Reportes
   { key: 'reports.view', label: 'Ver reportes', group: 'Reportes', module: 'reports' },
 ] as const satisfies readonly { key: string; label: string; group: string; module?: AppModule }[];
@@ -59,13 +61,13 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
       'catalog.view', 'pos.sell', 'sales.view', 'sales.void',
       'cash.open', 'cash.close', 'cash.movements', 'cash.view',
       'inventory.view', 'inventory.adjust', 'purchases.manage', 'transfers.manage',
-      'kitchen.view', 'tables.manage', 'reports.view',
+      'kitchen.view', 'tables.manage', 'reports.view', 'online.manage',
     ],
   },
   {
     name: 'Cajero',
     description: 'Vende y maneja su caja',
-    permissions: ['catalog.view', 'pos.sell', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage'],
+    permissions: ['catalog.view', 'pos.sell', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage'],
   },
   {
     name: 'Cocina',

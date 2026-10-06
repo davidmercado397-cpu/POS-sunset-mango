@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, BarChart3, Building2, ChefHat, Grid3x3, Home, Package, Receipt, Settings, ShoppingBag,
+  ArrowLeftRight, BarChart3, Bike, Building2, ChefHat, Grid3x3, Home, Package, Receipt, Settings, ShoppingBag,
   ShoppingCart, UserCog, Utensils, Wallet, type LucideIcon,
 } from 'lucide-react';
 import type { AppModule } from '../auth/types';
@@ -26,6 +26,7 @@ export const TENANT_NAV: NavItem[] = [
   { to: '/pos', label: 'Vender', icon: ShoppingCart, anyPermission: ['pos.sell'], module: 'pos' },
   { to: '/caja', label: 'Caja', icon: Wallet, anyPermission: ['cash.open', 'cash.close', 'cash.view', 'cash.movements'], module: 'cash' },
   { to: '/ventas', label: 'Ventas', icon: Receipt, anyPermission: ['sales.view'], module: 'pos' },
+  { to: '/pedidos-online', label: 'Pedidos en línea', icon: Bike, anyPermission: ['online.manage'], module: 'online' },
   { to: '/mesas', label: 'Mesas', icon: Grid3x3, anyPermission: ['tables.manage'], module: 'tables' },
   { to: '/cocina', label: 'Cocina', icon: ChefHat, anyPermission: ['kitchen.view'], module: 'kitchen' },
   { to: '/catalogo', label: 'Catálogo', icon: Utensils, anyPermission: ['catalog.manage'] },

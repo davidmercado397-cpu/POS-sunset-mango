@@ -68,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null);
       applySession(null);
     });
+    // La tienda pública no usa sesión ni debe cambiar los colores del negocio.
+    if (window.location.pathname.startsWith('/pedir/')) {
+      setStatus('anonymous');
+      return;
+    }
     refreshAccessToken().then(async (token) => {
       if (!token) return applySession(null);
       try {

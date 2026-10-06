@@ -18,6 +18,9 @@ import { SalesPage } from './pages/sales/SalesPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { OnlineOrdersPage } from './pages/online/OnlineOrdersPage';
+import { StorePage } from './pages/store/StorePage';
+import { TrackPage } from './pages/store/TrackPage';
 import { TenantsPage } from './pages/platform/TenantsPage';
 import { TablesPage } from './pages/tables/TablesPage';
 
@@ -35,6 +38,7 @@ const PAGES: Record<string, ReactNode> = {
   '/cocina': <KitchenPage />,
   '/reportes': <ReportsPage />,
   '/mesas': <TablesPage />,
+  '/pedidos-online': <OnlineOrdersPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */
@@ -53,6 +57,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Tienda pública: sin usuario ni contraseña */}
+      <Route path="/pedir/:slug" element={<StorePage />} />
+      <Route path="/pedir/:slug/pedido/:code" element={<TrackPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />

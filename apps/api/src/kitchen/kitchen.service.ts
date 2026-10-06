@@ -28,7 +28,7 @@ export class KitchenService {
 
   createTicket(
     tx: Prisma.TransactionClient,
-    data: { tenantId: string; branchId: string; saleId: string; label: string; items: KitchenTicketItem[] },
+    data: { tenantId: string; branchId: string; saleId?: string; onlineOrderId?: string; label: string; items: KitchenTicketItem[] },
   ) {
     return tx.kitchenTicket.create({ data: { ...data, items: data.items as unknown as Prisma.InputJsonValue } });
   }
