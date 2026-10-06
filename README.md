@@ -14,7 +14,8 @@ Todas las fases del plan están construidas y probadas:
 | Administración del negocio | Sedes con módulos por sede, usuarios, roles y permisos, marca (logo y colores), categorías de gastos, mesas y auditoría |
 | Catálogo | Categorías, productos con foto, variantes y adiciones con precio, disponibilidad por sede y receta |
 | POS | Venta por foto, variantes, pago combinado (efectivo, transferencia y QR Bold), propina opcional, cálculo del cambio |
-| Caja | Apertura con billetes y monedas, gastos (en efectivo o por transferencia), salidas y entradas, cuadre diario por método de pago con diferencias y **cierre mensual** consolidado |
+| Caja | Apertura con billetes y monedas, gastos (en efectivo o por transferencia), salidas y entradas, cuadre diario por método de pago con diferencias y **cierre mensual** por sede o consolidado de todas las sedes. El administrador puede reabrir un mes |
+| Gastos administrativos | Arriendo, nómina, servicios y otros gastos que no pasan por la caja del día, con soporte en foto; entran al cierre mensual y a los reportes |
 | Ventas | Historial y anulación (devuelve el inventario; solo con la caja abierta) |
 | Inventario | Insumos y productos terminados, existencias por sede, costo promedio, conteo físico, mermas y kardex |
 | Compras y traslados | Compras con costo (opcionalmente pagadas con la caja), proveedores y traslados entre sedes |
@@ -61,7 +62,7 @@ docker compose exec app node dist/prisma/demo.js
 | `mesero@sunsetmango.com` | Mesero |
 | `cocina@sunsetmango.com` | Cocina |
 
-La contraseña de todos es `Demo12345`. La demo trae las ventas y los cierres diarios del mes anterior para probar los reportes y el cierre mensual. Para ver la tienda pública abre `/pedir/sunset-mango-demo`; para recibir pedidos, la caja de la sede debe estar abierta.
+La contraseña de todos es `Demo12345`. La demo trae las ventas, los cierres diarios y los gastos administrativos del mes anterior en las dos sedes, para probar los reportes, el cierre mensual y el consolidado. Para ver la tienda pública abre `/pedir/sunset-mango-demo`; para recibir pedidos, la caja de la sede debe estar abierta.
 
 **¿Olvidaste la contraseña del Super Admin?** Cambia `SUPERADMIN_PASSWORD` en `.env` y ejecuta `docker compose up -d`. El contenedor se reinicia y actualiza la clave.
 

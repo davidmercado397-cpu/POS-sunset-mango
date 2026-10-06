@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, BarChart3, Bike, Building2, ChefHat, Grid3x3, Home, Package, Receipt, Settings, ShoppingBag,
+  ArrowLeftRight, BarChart3, Bike, FileText, Building2, ChefHat, Grid3x3, Home, Package, Receipt, Settings, ShoppingBag,
   ShoppingCart, UserCog, Utensils, Wallet, type LucideIcon,
 } from 'lucide-react';
 import type { AppModule } from '../auth/types';
@@ -11,6 +11,8 @@ export interface NavItem {
   /** Basta con tener uno de estos permisos */
   anyPermission?: string[];
   module?: AppModule;
+  /** Módulo a nivel de negocio (no depende de la sede seleccionada) */
+  tenantModule?: AppModule;
   superAdmin?: boolean;
   /** Fase del plan en la que se construye (para mostrar "Próximamente") */
   phase?: number;
@@ -33,6 +35,7 @@ export const TENANT_NAV: NavItem[] = [
   { to: '/inventario', label: 'Inventario', icon: Package, anyPermission: ['inventory.view'], module: 'inventory' },
   { to: '/compras', label: 'Compras', icon: ShoppingBag, anyPermission: ['purchases.manage'], module: 'purchases' },
   { to: '/traslados', label: 'Traslados', icon: ArrowLeftRight, anyPermission: ['transfers.manage'], module: 'transfers' },
+  { to: '/gastos', label: 'Gastos administrativos', icon: FileText, anyPermission: ['expenses.manage'], tenantModule: 'expenses' },
   { to: '/reportes', label: 'Reportes', icon: BarChart3, anyPermission: ['reports.view'], module: 'reports' },
   { to: '/admin', label: 'Administración', icon: Settings, anyPermission: ['branches.manage', 'users.manage', 'roles.manage', 'settings.manage', 'expenses.categories', 'audit.view'] },
 ];
@@ -43,9 +46,16 @@ export function visibleNav(
   isSuperAdmin: boolean,
   can: (p: string) => boolean,
   hasModule: (m: AppModule) => boolean,
+  tenantModules: string[] = [],
 ): NavItem[] {
   if (isSuperAdmin) return SUPER_ADMIN_NAV;
-  return TENANT_NAV.filter(
-    (item) => (!item.anyPermission || item.anyPermission.some(can)) && (!item.module || hasModule(item.module)),
+  return TENANT_NAV.filter((item) => isAllowed(item, can, hasModule, tenantModules));
+}
+
+export function isAllowed(item: NavItem, can: (p: string) => boolean, hasModule: (m: AppModule) => boolean, tenantModules: string[]) {
+  return (
+    (!item.anyPermission || item.anyPermission.some(can)) &&
+    (!item.module || hasModule(item.module)) &&
+    (!item.tenantModule || tenantModules.includes(item.tenantModule))
   );
 }

@@ -24,6 +24,7 @@ export const PERMISSION_CATALOG = [
   { key: 'cash.movements', label: 'Registrar gastos y movimientos de efectivo', group: 'Caja', module: 'cash' },
   { key: 'cash.view', label: 'Ver historial de cierres', group: 'Caja', module: 'cash' },
   { key: 'cash.monthly', label: 'Hacer el cierre mensual', group: 'Caja', module: 'cash' },
+  { key: 'cash.monthly_reopen', label: 'Reabrir un mes cerrado', group: 'Caja', module: 'cash' },
   { key: 'expenses.categories', label: 'Administrar categorías de gastos', group: 'Caja', module: 'cash' },
   // Inventario
   { key: 'inventory.view', label: 'Ver inventario', group: 'Inventario', module: 'inventory' },
@@ -34,6 +35,8 @@ export const PERMISSION_CATALOG = [
   // Cocina y mesas
   { key: 'kitchen.view', label: 'Pantalla de cocina', group: 'Cocina', module: 'kitchen' },
   { key: 'tables.manage', label: 'Mesas y pedidos abiertos', group: 'Mesas', module: 'tables' },
+  // Gastos administrativos
+  { key: 'expenses.manage', label: 'Registrar gastos administrativos', group: 'Gastos administrativos', module: 'expenses' },
   // Pedidos en línea
   { key: 'online.manage', label: 'Gestionar pedidos en línea', group: 'Pedidos en línea', module: 'online' },
   // Reportes

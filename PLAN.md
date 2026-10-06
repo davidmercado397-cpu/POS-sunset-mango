@@ -104,6 +104,14 @@ Un módulo solo funciona si está disponible para el negocio **y** activo en la 
 - Consolida, por sede, todos los cierres diarios del mes: ventas, métodos de pago, propinas, gastos (efectivo y transferencia), compras, utilidad bruta, anulaciones y la diferencia de cada día.
 - Se puede cerrar cuando el mes terminó y no queda ninguna caja abierta de ese mes. Al cerrarlo se guarda una copia fija con quién lo cerró, cuándo y sus observaciones; no se puede repetir.
 - Mientras el mes no se cierra, los valores se muestran como preliminares. Permiso: "Hacer el cierre mensual".
+- El **administrador** puede **reabrir** un mes cerrado con un motivo obligatorio (permiso "Reabrir un mes cerrado"). La copia anterior queda en la auditoría.
+- **Consolidado de todas las sedes** (solo administrador): totales del negocio, gastos de caja y administrativos, resultado del mes y una tabla por sede que muestra cuáles ya cerraron su mes.
+- Incluye los **gastos administrativos** del mes. Resultado del mes = ventas − costo de lo vendido (si hay inventario) − gastos de caja − gastos administrativos.
+
+### 5.3.2 Gastos administrativos
+- Módulo aparte para arriendo, nómina, servicios y similares, que **no afecta la caja del día**.
+- Cada gasto tiene fecha contable, sede o "General del negocio", categoría (las mismas de gastos), descripción, valor, forma de pago, referencia y foto del soporte.
+- Se suman al cierre mensual y a los reportes. No se pueden crear, editar ni borrar gastos de un mes ya cerrado; primero hay que reabrirlo.
 
 ### 5.4 Ventas
 - Historial con filtros. **Anulación solo por el admin de sede**, con motivo obligatorio; la anulación revierte el inventario y queda en auditoría.
@@ -189,7 +197,9 @@ Montos en COP como **enteros** (sin decimales).
 | Super Admin | Crear/suspender negocios + Seguridad (módulos disponibles por negocio) |
 | Ingreso | Con correo (`cajero1@negocio1.com`) o usuario simple; único en toda la plataforma |
 | Cierre de caja | Diario por sede, más cierre mensual consolidado |
-| Gastos | Efectivo de caja o transferencia |
+| Gastos | En la caja del día (efectivo o transferencia) o como gastos administrativos, sin caja |
+| Mes cerrado | El administrador puede reabrirlo con motivo |
+| Consolidado | Cierre mensual por sede y vista consolidada de todas las sedes |
 | Pedidos en línea | Se aceptan antes de pasar a cocina; tienda cerrada cuando la caja está cerrada; pago por transferencia (Bold pendiente) |
 | Mesas | El mesero puede quitar productos ya enviados |
 | Inventario negativo | Se permite vender y se alerta |

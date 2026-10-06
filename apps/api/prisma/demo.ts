@@ -114,7 +114,9 @@ async function main() {
       ]);
       await product('Cheesecake de mango', 9000, desserts, 'Porción individual', [[mango, 40]]);
 
-      await generateHistory(tx, tenant.id, centro.id);
+      await generateHistory(tx, tenant.id, centro.id, 7);
+      await generateHistory(tx, tenant.id, norte.id, 11, 0.6);
+      await generateAdminExpenses(tx, tenant.id, [centro.id, norte.id]);
     }, { timeout: 120_000 });
     console.log(`[demo] Negocio de demostración creado. Usuarios: admin@, sede@, cajero@, mesero@ y cocina@sunsetmango.com · contraseña: ${PASSWORD}`);
   } finally {
@@ -126,12 +128,12 @@ async function main() {
  * Ventas y cierres diarios del mes anterior (Sede Centro) para ver reportes y el cierre mensual.
  * Usa un generador pseudoaleatorio fijo para que los datos sean siempre los mismos.
  */
-async function generateHistory(tx: Prisma.TransactionClient, tenantId: string, branchId: string) {
-  let seed = 7;
+async function generateHistory(tx: Prisma.TransactionClient, tenantId: string, branchId: string, initialSeed: number, volume = 1) {
+  let seed = initialSeed;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)];
   const products = await tx.product.findMany({ where: { tenantId } });
-  const cashier = await tx.user.findFirstOrThrow({ where: { tenantId, username: 'cajero@sunsetmango.com' } });
+  const cashier = await tx.user.findFirstOrThrow({ where: { tenantId, username: 'admin@sunsetmango.com' } });
   const categories = await tx.expenseCategory.findMany({ where: { tenantId } });
   const now = new Date(Date.now() - 5 * 3600_000);
   const year = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
@@ -150,7 +152,7 @@ async function generateHistory(tx: Prisma.TransactionClient, tenantId: string, b
     const collected = { CASH: 0, TRANSFER: 0, QR_BOLD: 0 };
     const tips = { CASH: 0, TRANSFER: 0, QR_BOLD: 0 };
     let salesTotal = 0;
-    const salesCount = 8 + Math.floor(rand() * 18);
+    const salesCount = Math.max(3, Math.round((8 + Math.floor(rand() * 18)) * volume));
     for (let i = 0; i < salesCount; i++) {
       const lines = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => ({ p: pick(products), q: 1 + Math.floor(rand() * 2) }));
       const subtotal = lines.reduce((sum, l) => sum + l.p.price * l.q, 0);
@@ -189,6 +191,26 @@ async function generateHistory(tx: Prisma.TransactionClient, tenantId: string, b
     });
   }
   await tx.branch.update({ where: { id: branchId }, data: { saleSeq: number } });
+}
+
+/** Gastos administrativos del mes anterior: arriendo y servicios por sede, nómina y contador generales. */
+async function generateAdminExpenses(tx: Prisma.TransactionClient, tenantId: string, branchIds: string[]) {
+  const now = new Date(Date.now() - 5 * 3600_000);
+  const year = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  const month = now.getUTCMonth() === 0 ? 12 : now.getUTCMonth();
+  const day = (d: number) => new Date(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}T12:00:00-05:00`);
+  const admin = await tx.user.findFirstOrThrow({ where: { tenantId, username: 'admin@sunsetmango.com' } });
+  const cat = async (name: string) => (await tx.expenseCategory.findFirstOrThrow({ where: { tenantId, name } })).id;
+  const rows = [
+    { branchId: branchIds[0], categoryId: await cat('Arriendo'), description: 'Arriendo local Centro', amount: 3500000, date: day(1) },
+    { branchId: branchIds[1], categoryId: await cat('Arriendo'), description: 'Arriendo local Norte', amount: 2200000, date: day(1) },
+    { branchId: branchIds[0], categoryId: await cat('Servicios públicos'), description: 'Energía y agua Centro', amount: 680000, date: day(12) },
+    { branchId: branchIds[1], categoryId: await cat('Servicios públicos'), description: 'Energía y agua Norte', amount: 410000, date: day(12) },
+    { branchId: null, categoryId: await cat('Nómina'), description: 'Nómina quincena 1', amount: 4200000, date: day(15) },
+    { branchId: null, categoryId: await cat('Nómina'), description: 'Nómina quincena 2', amount: 4200000, date: day(28) },
+    { branchId: null, categoryId: await cat('Otros'), description: 'Honorarios contador', amount: 600000, date: day(25) },
+  ];
+  await tx.adminExpense.createMany({ data: rows.map((r) => ({ ...r, tenantId, method: 'TRANSFER' as const, createdById: admin.id })) });
 }
 
 main().catch((err) => {

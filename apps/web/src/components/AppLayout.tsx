@@ -12,7 +12,7 @@ export function AppLayout() {
   useEffect(() => setOpen(false), [location.pathname]);
 
   if (!session) return null;
-  const items = [...visibleNav(session.user.isSuperAdmin, can, hasModule), ACCOUNT_NAV];
+  const items = [...visibleNav(session.user.isSuperAdmin, can, hasModule, session.tenant?.enabledModules), ACCOUNT_NAV];
 
   return (
     <div className="flex h-full">

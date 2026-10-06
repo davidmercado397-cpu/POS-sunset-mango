@@ -6,7 +6,7 @@ import { Card } from '../components/ui';
 export function HomePage() {
   const { session, can, hasModule } = useAuth();
   if (!session) return null;
-  const shortcuts = visibleNav(session.user.isSuperAdmin, can, hasModule).filter((i) => i.to !== '/');
+  const shortcuts = visibleNav(session.user.isSuperAdmin, can, hasModule, session.tenant?.enabledModules).filter((i) => i.to !== '/');
   const firstName = session.user.fullName.split(' ')[0];
 
   return (

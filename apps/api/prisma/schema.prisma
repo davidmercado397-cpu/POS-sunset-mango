@@ -294,8 +294,9 @@ model ExpenseCategory {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  movements CashMovement[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  movements     CashMovement[]
+  adminExpenses AdminExpense[]
 
   @@unique([tenantId, name])
 }
@@ -699,4 +700,27 @@ model MonthlyClose {
 
   @@unique([branchId, year, month])
   @@index([tenantId])
+}
+
+/// Gasto administrativo (arriendo, nómina, servicios…). No afecta la caja del día.
+model AdminExpense {
+  id          String        @id @default(uuid())
+  tenantId    String
+  /// null = gasto general del negocio (no de una sede)
+  branchId    String?
+  categoryId  String?
+  description String
+  amount      Int
+  method      PaymentMethod @default(TRANSFER)
+  /// Fecha del gasto (día contable)
+  date        DateTime
+  reference   String?
+  receiptUrl  String?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, date])
 }

@@ -4,7 +4,7 @@ import {
 import { ResetPasswordDto } from '../platform/platform.dto';
 import { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { RequirePermissions } from '../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ImageUpload } from '../common/image-upload';
 import { BoldSettingsDto, BranchDto, BrandingDto, CreateUserDto, NamedDto, RoleDto, TableDto, UpdateUserDto } from './admin.dto';
 import { AdminService } from './admin.service';
@@ -125,7 +125,7 @@ export class AdminController {
 
   // Categorías de gastos (lectura para quien registra gastos)
   @Get('expense-categories')
-  @RequirePermissions('cash.movements')
+  @RequireAnyPermission('cash.movements', 'expenses.manage', 'expenses.categories')
   expenseCategories(@CurrentUser() user: AuthUser) {
     return this.admin.expenseCategories(user);
   }

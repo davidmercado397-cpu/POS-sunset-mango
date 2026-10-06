@@ -1,4 +1,4 @@
-export type AppModule = 'pos' | 'cash' | 'tips' | 'inventory' | 'purchases' | 'transfers' | 'kitchen' | 'tables' | 'reports' | 'online';
+export type AppModule = 'pos' | 'cash' | 'tips' | 'inventory' | 'purchases' | 'transfers' | 'kitchen' | 'tables' | 'reports' | 'online' | 'expenses';
 
 export interface SessionData {
   user: {

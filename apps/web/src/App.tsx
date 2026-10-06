@@ -3,10 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './components/AppLayout';
-import { SUPER_ADMIN_NAV, TENANT_NAV, type NavItem } from './components/navigation';
+import { isAllowed, SUPER_ADMIN_NAV, TENANT_NAV, type NavItem } from './components/navigation';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/admin/AdminPage';
 import { CashPage } from './pages/cash/CashPage';
+import { ExpensesPage } from './pages/expenses/ExpensesPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
 import { KitchenPage } from './pages/kitchen/KitchenPage';
@@ -39,6 +40,7 @@ const PAGES: Record<string, ReactNode> = {
   '/reportes': <ReportsPage />,
   '/mesas': <TablesPage />,
   '/pedidos-online': <OnlineOrdersPage />,
+  '/gastos': <ExpensesPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */
@@ -47,7 +49,7 @@ function Guarded({ item, children }: { item: NavItem; children: ReactNode }) {
   if (!session) return null;
   const allowed = item.superAdmin
     ? session.user.isSuperAdmin
-    : !session.user.isSuperAdmin && (!item.anyPermission || item.anyPermission.some(can)) && (!item.module || hasModule(item.module));
+    : !session.user.isSuperAdmin && isAllowed(item, can, hasModule, session.tenant?.enabledModules ?? []);
   return allowed ? <>{children}</> : <Navigate to="/" replace />;
 }
 

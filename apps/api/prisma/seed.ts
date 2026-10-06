@@ -1,9 +1,11 @@
 /**
- * Crea (o actualiza la contraseña de) el Super Admin a partir de variables de entorno.
+ * Crea (o actualiza la contraseña de) el Super Admin a partir de variables de entorno
+ * y sincroniza los permisos del rol base "Administrador".
  * Es idempotente: se ejecuta en cada arranque del contenedor.
  */
 import { PrismaClient } from '@prisma/client';
 import { hashPassword, verifyPassword } from '../src/auth/password';
+import { ALL_PERMISSIONS } from '../src/common/permissions';
 
 async function main() {
   const prisma = new PrismaClient();
@@ -12,6 +14,10 @@ async function main() {
   const fullName = process.env.SUPERADMIN_NAME ?? 'Super Administrador';
 
   try {
+    // El rol base "Administrador" de cada negocio recibe los permisos que se agreguen en nuevas versiones.
+    const synced = await prisma.role.updateMany({ where: { isSystem: true, name: 'Administrador' }, data: { permissions: ALL_PERMISSIONS } });
+    if (synced.count) console.log(`[seed] Permisos del rol Administrador actualizados en ${synced.count} negocio(s)`);
+
     const existing = await prisma.user.findUnique({ where: { username } });
     if (existing) {
       if (!existing.isSuperAdmin) {

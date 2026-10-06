@@ -26,7 +26,9 @@ export class ReportsService {
 
     const saleWhere: Prisma.SaleWhereInput = { tenantId, branchId: { in: branchIds }, status: 'COMPLETED', completedAt: range };
 
-    const [totals, voided, payments, tips, byDay, byHour, topProducts, byUser, expenses, purchases, cogs, sessions, byBranch] = await Promise.all([
+    const adminWhere: Prisma.AdminExpenseWhereInput = { tenantId, date: range, ...(all ? {} : { branchId: branch.id }) };
+    const [adminExpenses, totals, voided, payments, tips, byDay, byHour, topProducts, byUser, expenses, purchases, cogs, sessions, byBranch] = await Promise.all([
+      this.prisma.adminExpense.aggregate({ where: adminWhere, _sum: { amount: true } }),
       this.prisma.sale.aggregate({ where: saleWhere, _sum: { subtotal: true, tipAmount: true }, _count: true }),
       this.prisma.sale.aggregate({ where: { tenantId, branchId: { in: branchIds }, status: 'VOIDED', voidedAt: range }, _sum: { subtotal: true }, _count: true }),
       this.prisma.payment.groupBy({ by: ['method'], where: { sale: saleWhere }, _sum: { amount: true } }),
@@ -128,6 +130,7 @@ export class ReportsService {
         withdrawals: expenses.filter((e) => e.type === 'WITHDRAWAL').reduce((s, e) => s + Number(e.total), 0),
         cost: hasInventory ? cost : null,
         grossProfit: hasInventory ? salesTotal - cost : null,
+        adminExpenses: adminExpenses._sum.amount ?? 0,
         cashSessions: sessions.length,
         differences,
       },

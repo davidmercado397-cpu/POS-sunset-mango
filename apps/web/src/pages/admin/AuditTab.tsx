@@ -36,6 +36,10 @@ const ACTION_LABELS: Record<string, string> = {
   'online.payment_confirmed': 'Pago de pedido en línea confirmado',
   'settings.bold': 'Configuración de Bold',
   'cash.monthly_closed': 'Cierre mensual',
+  'cash.monthly_reopened': 'Mes reabierto',
+  'expense.created': 'Gasto administrativo creado',
+  'expense.updated': 'Gasto administrativo editado',
+  'expense.deleted': 'Gasto administrativo eliminado',
   'order.item_removed': 'Producto quitado de una cuenta',
 };
 

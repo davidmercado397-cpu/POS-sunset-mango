@@ -11,7 +11,7 @@ import { Stat } from '../cash/CashSummaryView';
 interface Summary {
   totals: {
     salesCount: number; salesTotal: number; tips: number; avgTicket: number; voidedCount: number; voidedTotal: number;
-    purchases: number; purchasesCount: number; expenses: number; expensesTransfer: number; withdrawals: number; cost: number | null; grossProfit: number | null;
+    purchases: number; purchasesCount: number; expenses: number; expensesTransfer: number; adminExpenses: number; withdrawals: number; cost: number | null; grossProfit: number | null;
     cashSessions: number; differences: Record<string, number>;
   };
   byMethod: { method: string; sales: number; tips: number }[];
@@ -126,6 +126,7 @@ function SalesReport({ canAll }: { canAll: boolean }) {
             <Stat label="Propinas" value={formatCOP(t.tips)} />
             <Stat label="Anuladas" value={formatCOP(t.voidedTotal)} hint={`${t.voidedCount} ventas`} />
             <Stat label="Gastos" value={formatCOP(t.expenses)} hint={[t.expensesTransfer ? `Por transferencia ${formatCOP(t.expensesTransfer)}` : '', t.withdrawals ? `Salidas ${formatCOP(t.withdrawals)}` : ''].filter(Boolean).join(' · ') || undefined} />
+            {t.adminExpenses > 0 && <Stat label="Gastos administrativos" value={formatCOP(t.adminExpenses)} hint={scope === 'all' ? 'Incluye los generales' : 'De esta sede'} />}
             {t.purchasesCount > 0 && <Stat label="Compras" value={formatCOP(t.purchases)} hint={`${t.purchasesCount} compras`} />}
             {t.grossProfit != null && (t.cost ?? 0) > 0 && <Stat label="Utilidad bruta" value={formatCOP(t.grossProfit)} hint={`Costo de lo vendido ${formatCOP(t.cost ?? 0)}`} />}
             <Stat label="Diferencias de caja" value={formatCOP(totalDiff)} hint={`${t.cashSessions} cierres`} />
