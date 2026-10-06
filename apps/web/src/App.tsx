@@ -6,7 +6,10 @@ import { AppLayout } from './components/AppLayout';
 import { SUPER_ADMIN_NAV, TENANT_NAV, type NavItem } from './components/navigation';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/admin/AdminPage';
+import { CashPage } from './pages/cash/CashPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
+import { PosPage } from './pages/pos/PosPage';
+import { SalesPage } from './pages/sales/SalesPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
@@ -17,6 +20,9 @@ const PAGES: Record<string, ReactNode> = {
   '/negocios': <TenantsPage />,
   '/admin': <AdminPage />,
   '/catalogo': <CatalogPage />,
+  '/pos': <PosPage />,
+  '/caja': <CashPage />,
+  '/ventas': <SalesPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */

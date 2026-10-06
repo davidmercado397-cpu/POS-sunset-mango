@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CashModule } from './cash/cash.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BranchGuard } from './common/guards/branch.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -14,8 +15,11 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { AppConfigModule } from './config/config.module';
 import { ENV, Env } from './config/env';
 import { HealthController } from './health/health.controller';
+import { StockModule } from './inventory/stock.module';
+import { KitchenModule } from './kitchen/kitchen.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SalesModule } from './sales/sales.module';
 import { UploadsModule } from './uploads/uploads.module';
 
 /** En producción la API también sirve el frontend compilado (SPA). */
@@ -50,6 +54,10 @@ function staticModules(): DynamicModule[] {
     PlatformModule,
     AdminModule,
     CatalogModule,
+    StockModule,
+    KitchenModule,
+    CashModule,
+    SalesModule,
   ],
   controllers: [HealthController],
   providers: [

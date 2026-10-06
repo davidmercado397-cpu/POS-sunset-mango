@@ -23,9 +23,9 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
 
 export const TENANT_NAV: NavItem[] = [
   { to: '/', label: 'Inicio', icon: Home },
-  { to: '/pos', label: 'Vender', icon: ShoppingCart, anyPermission: ['pos.sell'], module: 'pos', phase: 5 },
-  { to: '/caja', label: 'Caja', icon: Wallet, anyPermission: ['cash.open', 'cash.close', 'cash.view'], module: 'cash', phase: 4 },
-  { to: '/ventas', label: 'Ventas', icon: Receipt, anyPermission: ['sales.view'], module: 'pos', phase: 5 },
+  { to: '/pos', label: 'Vender', icon: ShoppingCart, anyPermission: ['pos.sell'], module: 'pos' },
+  { to: '/caja', label: 'Caja', icon: Wallet, anyPermission: ['cash.open', 'cash.close', 'cash.view', 'cash.movements'], module: 'cash' },
+  { to: '/ventas', label: 'Ventas', icon: Receipt, anyPermission: ['sales.view'], module: 'pos' },
   { to: '/mesas', label: 'Mesas', icon: Grid3x3, anyPermission: ['tables.manage'], module: 'tables', phase: 9 },
   { to: '/cocina', label: 'Cocina', icon: ChefHat, anyPermission: ['kitchen.view'], module: 'kitchen', phase: 7 },
   { to: '/catalogo', label: 'Catálogo', icon: Utensils, anyPermission: ['catalog.manage'] },
