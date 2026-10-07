@@ -40,3 +40,11 @@ export function summarizeNames(names: string[]): string[] {
   for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
   return [...counts].map(([name, count]) => (count > 1 ? `${count}× ${name}` : name));
 }
+
+/** Orden de productos en POS, tienda y catálogo: prioridad de su categoría, luego la del producto. */
+export const PRODUCT_ORDER: Prisma.ProductOrderByWithRelationInput[] = [
+  { category: { sortOrder: 'asc' } }, // sin categoría quedan al final (NULLS LAST)
+  { category: { name: 'asc' } },
+  { sortOrder: 'asc' },
+  { name: 'asc' },
+];

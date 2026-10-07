@@ -81,10 +81,12 @@ function CategoriesTab({ categories }: { categories: Category[] }) {
     <div className="max-w-3xl space-y-4">
       <div className="flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> Nueva categoría</Button></div>
       <Card className="divide-y divide-slate-100 p-0">
+        {categories.length > 0 && <p className="px-5 py-2 text-xs text-slate-500">Ordenadas por prioridad: la de número más bajo sale primero en el POS y en la tienda.</p>}
         {categories.length === 0 && <p className="p-5 text-sm text-slate-500">Sin categorías.</p>}
         {categories.map((c) => (
           <div key={c.id} className="flex items-center gap-3 px-5 py-3">
-            <span className="size-4 rounded-full" style={{ background: c.color }} />
+            <span className="w-8 shrink-0 text-center text-sm font-semibold tabular-nums text-slate-500" title="Prioridad">{c.sortOrder}</span>
+            <span className="size-4 shrink-0 rounded-full" style={{ background: c.color }} />
             <button className="flex-1 text-left font-medium" onClick={() => setEditing(c)}>{c.name}</button>
             {!c.isActive && <Badge>Oculta</Badge>}
             <span className="text-xs text-slate-500">{c._count?.products ?? 0} productos</span>
@@ -111,7 +113,10 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
       footer={<Button loading={save.isPending} onClick={() => save.mutate(undefined, { onSuccess: onClose })}>Guardar</Button>}>
       <div className="space-y-4">
         <Field label="Nombre"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-        <Field label="Orden en el POS"><Input type="number" min={0} value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} /></Field>
+        <Field label="Prioridad">
+          <Input type="number" min={0} value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+        </Field>
+        <p className="-mt-2 text-xs text-slate-500">El número más bajo sale primero en el POS y en la tienda en línea (1 = primero). Si dos tienen la misma prioridad se ordenan por nombre.</p>
         <div>
           <p className="mb-2 text-sm font-medium">Color</p>
           <div className="flex flex-wrap gap-2">

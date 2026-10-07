@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/auth-user';
-import { num, tenantOf } from '../common/util';
+import { num, PRODUCT_ORDER, tenantOf } from '../common/util';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { CategoryDto, ProductDto, RecipeLineDto } from './catalog.dto';
@@ -97,7 +97,7 @@ export class CatalogService {
     const products = await this.prisma.product.findMany({
       where: { tenantId: tenantOf(user) },
       include: PRODUCT_INCLUDE,
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      orderBy: PRODUCT_ORDER,
     });
     return products.map(serializeProduct);
   }

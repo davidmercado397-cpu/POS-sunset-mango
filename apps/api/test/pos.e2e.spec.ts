@@ -241,4 +241,19 @@ describe('Caja, POS, inventario y mesas', () => {
     await admin.post(`/orders/${order.body.id}/pay`, { payments: [{ method: 'CASH', amount: 24000 }] }).expect(201);
     expect(await stock(queso)).toBe(-6);
   });
+
+  it('el menú ordena categorías y productos por la prioridad de la categoría', async () => {
+    const granizados = (await admin.post('/catalog/categories', { name: 'Granizados', sortOrder: 5 }).expect(201)).body.id;
+    await admin.post('/catalog/products', { name: 'Agua', price: 3000 }).expect(201); // sin categoría: al final
+    await admin.post('/catalog/products', { name: 'Granizado de mango', price: 9000, categoryId: granizados }).expect(201);
+    let menu = (await admin.get('/pos/menu').expect(200)).body;
+    expect(menu.products.map((p: { name: string }) => p.name)).toEqual(['Hamburguesa', 'Granizado de mango', 'Agua']);
+
+    await admin.put(`/catalog/categories/${granizados}`, { name: 'Granizados', sortOrder: 0 }).expect(200);
+    const hamburguesas = menu.categories.find((c: { name: string }) => c.name === 'Hamburguesas').id;
+    await admin.put(`/catalog/categories/${hamburguesas}`, { name: 'Hamburguesas', sortOrder: 1 }).expect(200);
+    menu = (await admin.get('/pos/menu').expect(200)).body;
+    expect(menu.categories.map((c: { name: string }) => c.name)).toEqual(['Granizados', 'Hamburguesas']);
+    expect(menu.products.map((p: { name: string }) => p.name)).toEqual(['Granizado de mango', 'Hamburguesa', 'Agua']);
+  });
 });

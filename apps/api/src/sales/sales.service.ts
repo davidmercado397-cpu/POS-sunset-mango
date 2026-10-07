@@ -3,7 +3,7 @@ import { PaymentMethod, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { CashService } from '../cash/cash.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
-import { dayRange, num, round3, summarizeNames, tenantOf } from '../common/util';
+import { dayRange, num, PRODUCT_ORDER, round3, summarizeNames, tenantOf } from '../common/util';
 import { StockService } from '../inventory/stock.service';
 import { KitchenService, KitchenTicketItem } from '../kitchen/kitchen.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -52,7 +52,7 @@ export class SalesService {
       this.prisma.category.findMany({ where: { tenantId, isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
       this.prisma.product.findMany({
         where: { tenantId, isActive: true, NOT: { disabledBranchIds: { has: branch.id } } },
-        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        orderBy: PRODUCT_ORDER,
         include: {
           modifierGroups: {
             orderBy: { sortOrder: 'asc' },
