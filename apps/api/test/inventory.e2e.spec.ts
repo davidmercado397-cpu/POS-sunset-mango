@@ -125,4 +125,42 @@ describe('Inventario, compras y traslados', () => {
     const other = client(app, await loginAs(app, 'sede@inv.com'), ctx.branchId);
     await other.put(`/inventory/stock/${vasos}/cost`, { avgCost: 1 }).expect(403);
   });
+
+  it('el administrador elimina ítems inactivos sin movimientos ni recetas', async () => {
+    const make = async (name: string) => (await ctx.admin.post('/inventory/items', { name, type: 'INGREDIENT', unit: 'und' }).expect(201)).body.id as string;
+    const deactivate = (id: string, name: string) => ctx.admin.put(`/inventory/items/${id}`, { name, type: 'INGREDIENT', unit: 'und', isActive: false }).expect(200);
+    const libre = await make('Pitillos');
+    const usado = await make('Servilletas');
+    const enReceta = await make('Salsa');
+
+    // Activo: hay que desactivarlo primero.
+    await ctx.admin.delete(`/inventory/items/${libre}`).expect(400);
+    await deactivate(libre, 'Pitillos');
+
+    await ctx.admin.post('/inventory/adjust', { mode: 'IN', lines: [{ itemId: usado, quantity: 5 }] }).expect(201);
+    await deactivate(usado, 'Servilletas');
+    await ctx.admin.post('/catalog/products', { name: 'Perro', price: 8000, recipe: [{ inventoryItemId: enReceta, quantity: 1 }] }).expect(201);
+    await deactivate(enReceta, 'Salsa');
+
+    const items = (await ctx.admin.get('/inventory/items').expect(200)).body as { id: string; movementCount: number; recipeCount: number }[];
+    expect(items.find((i) => i.id === usado)).toMatchObject({ movementCount: 1, recipeCount: 0 });
+    expect(items.find((i) => i.id === enReceta)).toMatchObject({ movementCount: 0, recipeCount: 1 });
+
+    // Sin el permiso (administrador de sede) no puede.
+    const roles = await ctx.admin.get('/admin/roles').expect(200);
+    const sede = roles.body.roles.find((r: { name: string }) => r.name === 'Administrador de sede');
+    expect(sede.permissions).not.toContain('inventory.delete');
+    await ctx.admin.post('/admin/users', { fullName: 'Sede', username: 'sede2@inv.com', password: 'Secreta123!', roleId: sede.id, branchIds: [ctx.branchId] }).expect(201);
+    const other = client(app, await loginAs(app, 'sede2@inv.com'), ctx.branchId);
+    await other.delete(`/inventory/items/${libre}`).expect(403);
+
+    const res = await ctx.admin.delete(`/inventory/items/${usado}`).expect(400);
+    expect(res.body.message).toContain('movimientos');
+    expect((await ctx.admin.delete(`/inventory/items/${enReceta}`).expect(400)).body.message).toContain('Perro');
+    await ctx.admin.delete(`/inventory/items/${libre}`).expect(204);
+    await ctx.admin.delete(`/inventory/items/${libre}`).expect(404);
+
+    expect(await prisma.inventoryItem.count({ where: { id: { in: [usado, enReceta] } } })).toBe(2);
+    expect(await prisma.auditLog.count({ where: { action: 'inventory.item_deleted' } })).toBe(1);
+  });
 });

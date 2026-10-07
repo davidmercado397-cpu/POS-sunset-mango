@@ -174,24 +174,65 @@ function AdjustModal({ mode, rows, onClose }: { mode: 'COUNT' | 'WASTE' | 'IN'; 
 }
 
 function ItemsTab() {
+  const { can } = useAuth();
   const items = useApi<InventoryItem[]>(['inventory', 'items'], '/inventory/items');
   const [editing, setEditing] = useState<InventoryItem | 'new' | null>(null);
+  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const del = useApiMutation((id: string) => api(`/inventory/items/${id}`, { method: 'DELETE' }), {
+    invalidate: [['inventory']], success: 'Ítem eliminado',
+  });
+  const all = items.data ?? [];
+  const inactiveCount = all.filter((i) => !i.isActive).length;
+  const rows = all.filter((i) => status === 'all' || (status === 'active') === i.isActive);
+
+  function deleteBlock(i: InventoryItem): string | null {
+    if (i.isActive) return 'Desactívalo primero para poder eliminarlo';
+    if (i.movementCount) return `Tiene ${i.movementCount} movimiento(s) en el kardex; solo puede quedar inactivo`;
+    if (i.recipeCount) return 'Se usa en recetas; quítalo de ellas primero';
+    return null;
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> Nuevo ítem</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Select className="w-52" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+          <option value="all">Todos ({all.length})</option>
+          <option value="active">Activos ({all.length - inactiveCount})</option>
+          <option value="inactive">Inactivos ({inactiveCount})</option>
+        </Select>
+        <Button onClick={() => setEditing('new')}><Plus className="size-4" /> Nuevo ítem</Button>
+      </div>
       <p className="text-sm text-slate-500">Los <b>insumos</b> se usan en recetas (carne, pan, queso). Los <b>productos terminados</b> se compran y revenden (gaseosas, agua).</p>
+      {status === 'inactive' && can('inventory.delete') && (
+        <p className="text-sm text-slate-500">Puedes eliminar los ítems inactivos que nunca tuvieron movimientos ni se usan en recetas. Los que tienen historial se conservan para no alterar el kardex.</p>
+      )}
       <Table>
-        <thead><tr><th>Nombre</th><th>Tipo</th><th>Unidad</th><th className="text-right">Stock mínimo</th><th /></tr></thead>
+        <thead><tr><th>Nombre</th><th>Tipo</th><th>Unidad</th><th className="text-right">Stock mínimo</th><th className="text-right">Movimientos</th><th /></tr></thead>
         <tbody>
-          {items.data?.map((i) => (
-            <tr key={i.id}>
-              <td className="font-medium">{i.name} {!i.isActive && <Badge>Inactivo</Badge>}</td>
-              <td>{i.type === 'INGREDIENT' ? 'Insumo' : 'Producto terminado'}</td>
-              <td>{UNITS.find((u) => u.value === i.unit)?.label ?? i.unit}</td>
-              <td className="text-right tabular-nums">{formatQty(i.minStock)}</td>
-              <td className="text-right"><Button variant="ghost" onClick={() => setEditing(i)} aria-label="Editar"><Pencil className="size-4" /></Button></td>
-            </tr>
-          ))}
+          {rows.map((i) => {
+            const block = deleteBlock(i);
+            return (
+              <tr key={i.id}>
+                <td className="font-medium">{i.name} {!i.isActive && <Badge>Inactivo</Badge>}</td>
+                <td>{i.type === 'INGREDIENT' ? 'Insumo' : 'Producto terminado'}</td>
+                <td>{UNITS.find((u) => u.value === i.unit)?.label ?? i.unit}</td>
+                <td className="text-right tabular-nums">{formatQty(i.minStock)}</td>
+                <td className="text-right tabular-nums">{i.movementCount ?? 0}</td>
+                <td className="whitespace-nowrap text-right">
+                  <Button variant="ghost" onClick={() => setEditing(i)} aria-label="Editar"><Pencil className="size-4" /></Button>
+                  {can('inventory.delete') && !i.isActive && (
+                    <span title={block ?? 'Eliminar ítem'}><Button variant="ghost" aria-label="Eliminar" disabled={!!block || del.isPending}
+                      onClick={() => confirm(`¿Eliminar definitivamente ${i.name}? Esta acción no se puede deshacer.`) && del.mutate(i.id)}>
+                      <Trash2 className={`size-4 ${block ? 'text-slate-300' : 'text-red-600'}`} />
+                    </Button></span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {items.data && rows.length === 0 && (
+            <tr><td colSpan={6} className="py-6 text-center text-sm text-slate-500">No hay ítems {status === 'inactive' ? 'inactivos' : status === 'active' ? 'activos' : ''}</td></tr>
+          )}
         </tbody>
       </Table>
       {editing && <ItemModal item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}

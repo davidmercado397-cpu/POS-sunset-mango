@@ -31,6 +31,7 @@ export const PERMISSION_CATALOG = [
   { key: 'inventory.manage', label: 'Administrar insumos y recetas', group: 'Inventario', module: 'inventory' },
   { key: 'inventory.adjust', label: 'Ajustes y mermas', group: 'Inventario', module: 'inventory' },
   { key: 'inventory.edit', label: 'Corregir movimientos y costos de inventario', group: 'Inventario', module: 'inventory' },
+  { key: 'inventory.delete', label: 'Eliminar ítems inactivos sin movimientos', group: 'Inventario', module: 'inventory' },
   { key: 'purchases.manage', label: 'Registrar compras y proveedores', group: 'Inventario', module: 'purchases' },
   { key: 'transfers.manage', label: 'Traslados entre sedes', group: 'Inventario', module: 'transfers' },
   // Cocina y mesas

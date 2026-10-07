@@ -31,6 +31,10 @@ export interface InventoryItem {
   unit: string;
   minStock: number;
   isActive: boolean;
+  /** Movimientos de kardex en cualquier sede (solo en /inventory/items) */
+  movementCount?: number;
+  /** Líneas de receta que lo usan (solo en /inventory/items) */
+  recipeCount?: number;
 }
 
 export const UNITS = [

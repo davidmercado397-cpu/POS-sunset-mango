@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { AuthUser, BranchContext } from '../common/auth-user';
 import { CurrentBranch, RequireModule, RequireTenantModule } from '../common/decorators/branch.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -30,6 +30,14 @@ export class InventoryController {
   @RequirePermissions('inventory.manage')
   updateItem(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: InventoryItemDto) {
     return this.inventory.saveItem(user, dto, id);
+  }
+
+  @Delete('inventory/items/:id')
+  @HttpCode(204)
+  @RequireTenantModule('inventory')
+  @RequirePermissions('inventory.delete')
+  deleteItem(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.inventory.deleteItem(user, id);
   }
 
   // Existencias por sede

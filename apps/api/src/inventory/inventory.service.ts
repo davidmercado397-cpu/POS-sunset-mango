@@ -20,8 +20,47 @@ export class InventoryService {
   // ───────── Ítems ─────────
 
   async items(user: AuthUser) {
-    const items = await this.prisma.inventoryItem.findMany({ where: { tenantId: tenantOf(user) }, orderBy: { name: 'asc' } });
-    return items.map((i) => ({ ...i, minStock: num(i.minStock) }));
+    const items = await this.prisma.inventoryItem.findMany({
+      where: { tenantId: tenantOf(user) },
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { movements: true, recipeLines: true } } },
+    });
+    return items.map(({ _count, ...i }) => ({
+      ...i,
+      minStock: num(i.minStock),
+      movementCount: _count.movements,
+      recipeCount: _count.recipeLines,
+    }));
+  }
+
+  /** Elimina un ítem inactivo que nunca tuvo movimientos ni se usa en recetas. */
+  async deleteItem(user: AuthUser, id: string) {
+    const tenantId = tenantOf(user);
+    const name = await this.prisma.$transaction(async (tx) => {
+      const [item] = await tx.$queryRaw<{ id: string; name: string; isActive: boolean }[]>`
+        SELECT id, name, "isActive" FROM "InventoryItem" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
+      if (!item) throw new NotFoundException('Ítem no encontrado');
+      if (item.isActive) throw new BadRequestException('Primero desactiva el ítem para poder eliminarlo');
+      const [movements, purchases, transfers, recipes] = await Promise.all([
+        tx.stockMovement.count({ where: { itemId: id } }),
+        tx.purchaseItem.count({ where: { itemId: id } }),
+        tx.transferItem.count({ where: { itemId: id } }),
+        tx.recipeLine.findMany({
+          where: { inventoryItemId: id },
+          select: { product: { select: { name: true } }, modifierOption: { select: { name: true } } },
+        }),
+      ]);
+      if (movements || purchases || transfers) {
+        throw new BadRequestException('Este ítem ya tiene movimientos de inventario; solo se puede dejar inactivo');
+      }
+      if (recipes.length) {
+        const names = [...new Set(recipes.map((r) => r.product?.name ?? r.modifierOption?.name ?? ''))].filter(Boolean);
+        throw new BadRequestException(`Se usa en recetas de: ${names.join(', ')}. Quítalo de esas recetas primero`);
+      }
+      await tx.inventoryItem.delete({ where: { id } });
+      return item.name;
+    });
+    await this.audit.log({ tenantId, userId: user.id, action: 'inventory.item_deleted', entity: 'InventoryItem', entityId: id, data: { name } });
   }
 
   async saveItem(user: AuthUser, dto: InventoryItemDto, id?: string) {
