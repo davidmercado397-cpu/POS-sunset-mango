@@ -190,7 +190,9 @@ describe('Caja, POS, inventario y mesas', () => {
       .expect(201);
     expect(combo.body.comboItems.map((c: { name: string }) => c.name)).toEqual(['Hamburguesa', 'Papas', 'Gaseosa']);
     await admin.post('/catalog/products', { name: 'Súper combo', price: 1, isCombo: true, comboItems: [{ productId: combo.body.id, quantity: 1 }] }).expect(400);
-    await admin.delete(`/catalog/products/${papas}`).expect(400); // está en un combo
+    await prisma.product.update({ where: { id: papas }, data: { isActive: false } });
+    expect((await admin.delete(`/catalog/products/${papas}`).expect(400)).body.message).toContain('Combo Clásico');
+    await prisma.product.update({ where: { id: papas }, data: { isActive: true } });
 
     const menu = await admin.get('/pos/menu').expect(200);
     expect(menu.body.products.find((p: { id: string }) => p.id === combo.body.id).comboItems).toHaveLength(3);
@@ -255,5 +257,25 @@ describe('Caja, POS, inventario y mesas', () => {
     menu = (await admin.get('/pos/menu').expect(200)).body;
     expect(menu.categories.map((c: { name: string }) => c.name)).toEqual(['Granizados', 'Hamburguesas']);
     expect(menu.products.map((p: { name: string }) => p.name)).toEqual(['Granizado de mango', 'Hamburguesa', 'Agua']);
+  });
+
+  it('el administrador elimina productos inactivos y el historial de ventas se conserva', async () => {
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    const sale = await sell({ tipAmount: 0, tipMethod: undefined, payments: [{ method: 'CASH', amount: 36000 }] }).expect(201);
+
+    expect((await admin.delete(`/catalog/products/${burger.id}`).expect(400)).body.message).toContain('desactiva');
+    await prisma.product.update({ where: { id: burger.id }, data: { isActive: false } });
+
+    const roles = (await admin.get('/admin/roles').expect(200)).body.roles as { id: string; name: string; permissions: string[] }[];
+    const sede = roles.find((r) => r.name === 'Administrador de sede')!;
+    expect(sede.permissions).not.toContain('catalog.delete');
+    await admin.post('/admin/users', { fullName: 'Sede', username: 'sede@cat.com', password: 'Secreta123!', roleId: sede.id, branchIds: [branchId] }).expect(201);
+    await client(app, await loginAs(app, 'sede@cat.com'), branchId).delete(`/catalog/products/${burger.id}`).expect(403);
+
+    await admin.delete(`/catalog/products/${burger.id}`).expect(204);
+    expect(await prisma.product.count({ where: { id: burger.id } })).toBe(0);
+    const items = await prisma.saleItem.findMany({ where: { saleId: sale.body.id } });
+    expect(items[0].productName).toBe('Hamburguesa');
+    expect(await prisma.auditLog.count({ where: { action: 'catalog.product_deleted' } })).toBe(1);
   });
 });

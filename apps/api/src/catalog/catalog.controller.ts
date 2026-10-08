@@ -60,7 +60,7 @@ export class CatalogController {
   }
 
   @Delete('products/:id')
-  @RequirePermissions('catalog.manage')
+  @RequirePermissions('catalog.delete')
   @HttpCode(204)
   deleteProduct(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.catalog.deleteProduct(user, id);

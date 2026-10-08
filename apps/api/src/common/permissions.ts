@@ -14,6 +14,7 @@ export const PERMISSION_CATALOG = [
   // Catálogo
   { key: 'catalog.view', label: 'Ver catálogo', group: 'Catálogo' },
   { key: 'catalog.manage', label: 'Administrar productos y categorías', group: 'Catálogo' },
+  { key: 'catalog.delete', label: 'Eliminar productos inactivos', group: 'Catálogo' },
   // POS y ventas
   { key: 'pos.sell', label: 'Vender en el POS', group: 'Ventas', module: 'pos' },
   { key: 'sales.view', label: 'Ver historial de ventas', group: 'Ventas', module: 'pos' },

@@ -30,7 +30,9 @@ function ProductsTab({ categories }: { categories: Category[] }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (products.data ?? []).filter(
-      (p) => (category === 'all' || p.categoryId === category || (category === 'none' && !p.categoryId)) && (!q || p.name.toLowerCase().includes(q)),
+      (p) =>
+        (category === 'all' || p.categoryId === category || (category === 'none' && !p.categoryId) || (category === 'inactive' && !p.isActive)) &&
+        (!q || p.name.toLowerCase().includes(q)),
     );
   }, [products.data, search, category]);
 
@@ -44,7 +46,7 @@ function ProductsTab({ categories }: { categories: Category[] }) {
         <Button onClick={() => setEditing('new')}><Plus className="size-4" /> Nuevo producto</Button>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {[{ id: 'all', name: 'Todos', color: '#64748b' }, ...categories, { id: 'none', name: 'Sin categoría', color: '#94a3b8' }].map((c) => (
+        {[{ id: 'all', name: 'Todos', color: '#64748b' }, ...categories, { id: 'none', name: 'Sin categoría', color: '#94a3b8' }, { id: 'inactive', name: 'Inactivos', color: '#94a3b8' }].map((c) => (
           <button key={c.id} onClick={() => setCategory(c.id)}
             className={`min-h-10 shrink-0 rounded-full border px-4 text-sm font-semibold ${category === c.id ? 'border-transparent bg-brand text-brand-contrast' : 'border-slate-300 bg-white'}`}>
             {c.name}

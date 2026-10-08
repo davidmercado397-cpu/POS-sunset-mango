@@ -249,6 +249,7 @@ export class CatalogService {
     const tenantId = tenantOf(user);
     const product = await this.prisma.product.findFirst({ where: { id, tenantId } });
     if (!product) throw new NotFoundException('Producto no encontrado');
+    if (product.isActive) throw new BadRequestException('Primero desactiva el producto para poder eliminarlo');
     const inCombos = await this.prisma.comboItem.findMany({ where: { productId: id }, include: { combo: { select: { name: true } } } });
     if (inCombos.length) {
       throw new BadRequestException(`Está incluido en: ${[...new Set(inCombos.map((c) => c.combo.name))].join(', ')}. Quítalo de esos combos o desactívalo`);
@@ -256,5 +257,6 @@ export class CatalogService {
     // Las ventas guardan copia del nombre y precio, así que el historial no se pierde.
     await this.prisma.product.delete({ where: { id } });
     await this.uploads.remove(tenantId, product.imageUrl);
+    await this.audit.log({ tenantId, userId: user.id, action: 'catalog.product_deleted', entity: 'Product', entityId: id, data: { name: product.name } });
   }
 }

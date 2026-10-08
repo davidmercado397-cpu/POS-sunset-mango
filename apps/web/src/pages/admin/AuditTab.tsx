@@ -29,6 +29,7 @@ const ACTION_LABELS: Record<string, string> = {
   'inventory.movement_corrected': 'Corrección de movimiento de inventario',
   'inventory.cost_set': 'Costo de inventario corregido',
   'inventory.item_deleted': 'Ítem de inventario eliminado',
+  'catalog.product_deleted': 'Producto eliminado',
   'purchase.created': 'Compra registrada',
   'transfer.sent': 'Traslado enviado',
   'transfer.received': 'Traslado recibido',

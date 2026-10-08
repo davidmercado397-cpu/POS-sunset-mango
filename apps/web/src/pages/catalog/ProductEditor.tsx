@@ -14,7 +14,7 @@ import type { Category, InventoryItem, ModifierGroup, Product, RecipeLine } from
 import { RecipeEditor } from './RecipeEditor';
 
 export function ProductEditor({ product, categories, products, onClose }: { product: Product | null; categories: Category[]; products: Product[]; onClose: () => void }) {
-  const { session } = useAuth();
+  const { session, can } = useAuth();
   const qc = useQueryClient();
   const inventoryEnabled = !!session?.tenant?.enabledModules.includes('inventory');
   const kitchenEnabled = !!session?.tenant?.enabledModules.includes('kitchen');
@@ -74,6 +74,21 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
     }
   }
 
+  async function removeProduct() {
+    if (!product || !confirm(`¿Eliminar definitivamente ${product.name}? Las ventas anteriores conservan su nombre y precio.`)) return;
+    setSaving(true);
+    try {
+      await api(`/catalog/products/${product.id}`, { method: 'DELETE' });
+      await qc.invalidateQueries({ queryKey: ['catalog'] });
+      toast.success('Producto eliminado');
+      onClose();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function removeImage() {
     if (product?.imageUrl && preview === product.imageUrl) {
       await api(`/catalog/products/${product.id}/image`, { method: 'DELETE' }).catch(toast.error);
@@ -92,7 +107,15 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
 
   return (
     <Modal open onClose={onClose} size="xl" title={product ? 'Editar producto' : 'Nuevo producto'}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={save}>Guardar</Button></>}>
+      footer={
+        <>
+          {product && !product.isActive && can('catalog.delete') && (
+            <Button variant="danger" className="mr-auto" disabled={saving} onClick={removeProduct}><Trash2 className="size-4" /> Eliminar</Button>
+          )}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button loading={saving} onClick={save}>Guardar</Button>
+        </>
+      }>
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         <div className="space-y-2">
           <ProductImage src={preview} alt={form.name} className="aspect-square w-full rounded-2xl border border-slate-200" />
