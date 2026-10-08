@@ -10,7 +10,7 @@ import { Stat } from '../cash/CashSummaryView';
 
 interface Summary {
   totals: {
-    salesCount: number; salesTotal: number; tips: number; avgTicket: number; voidedCount: number; voidedTotal: number;
+    salesCount: number; salesTotal: number; discounts?: number; tips: number; avgTicket: number; voidedCount: number; voidedTotal: number;
     purchases: number; purchasesCount: number; expenses: number; expensesTransfer: number; adminExpenses: number; withdrawals: number; cost: number | null; grossProfit: number | null;
     cashSessions: number; differences: Record<string, number>;
   };
@@ -121,7 +121,7 @@ function SalesReport({ canAll }: { canAll: boolean }) {
       {!data || !t ? <p className="text-slate-500">Cargando…</p> : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Stat tone="brand" label="Ventas" value={formatCOP(t.salesTotal)} hint={`${t.salesCount} ventas`} />
+            <Stat tone="brand" label="Ventas" value={formatCOP(t.salesTotal)} hint={`${t.salesCount} ventas${t.discounts ? ` · descuentos ${formatCOP(t.discounts)}` : ''}`} />
             <Stat label="Ticket promedio" value={formatCOP(t.avgTicket)} />
             <Stat label="Propinas" value={formatCOP(t.tips)} />
             <Stat label="Anuladas" value={formatCOP(t.voidedTotal)} hint={`${t.voidedCount} ventas`} />

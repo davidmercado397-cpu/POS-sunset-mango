@@ -6,6 +6,7 @@ export interface CashSummary {
   salesCount: number;
   voidedCount: number;
   salesTotal: number;
+  discountsTotal?: number;
   tipsTotal: number;
   collected: ByMethod;
   sales: ByMethod;

@@ -278,4 +278,33 @@ describe('Caja, POS, inventario y mesas', () => {
     expect(items[0].productName).toBe('Hamburguesa');
     expect(await prisma.auditLog.count({ where: { action: 'catalog.product_deleted' } })).toBe(1);
   });
+
+  it('descuento en dinero: reduce lo cobrado, cuadra la caja y requiere permiso', async () => {
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    // 2 hamburguesas grandes = 36.000; descuento de 1.000 → se cobran 35.000.
+    const cashOnly = { tipAmount: 0, tipMethod: undefined };
+    await sell({ ...cashOnly, discount: 1000, payments: [{ method: 'CASH', amount: 36000 }] }).expect(400);
+    await sell({ ...cashOnly, discount: 36000, payments: [{ method: 'CASH', amount: 1 }] }).expect(400);
+    const sale = await sell({ ...cashOnly, discount: 1000, discountNote: 'Cliente frecuente', payments: [{ method: 'CASH', amount: 35000 }] }).expect(201);
+    expect(sale.body).toMatchObject({ subtotal: 35000, discount: 1000, discountNote: 'Cliente frecuente' });
+    expect(sale.body.items.reduce((s: number, i: { lineTotal: number }) => s + i.lineTotal, 0)).toBe(36000);
+
+    // Cuenta abierta con descuento al cobrar.
+    const order = await admin.post('/orders', { customerName: 'Ana', items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }] }).expect(201);
+    await admin.post(`/orders/${order.body.id}/pay`, { discount: 500, payments: [{ method: 'TRANSFER', amount: 14500 }] }).expect(201);
+
+    const summary = (await admin.get('/cash/current').expect(200)).body.summary;
+    expect(summary).toMatchObject({ salesTotal: 49500, discountsTotal: 1500 });
+    expect(summary.expected).toEqual({ CASH: 35000, TRANSFER: 14500, QR_BOLD: 0 });
+    expect(await prisma.auditLog.count({ where: { action: 'sale.discount' } })).toBe(2);
+
+    // Sin el permiso (rol Mesero con pos.sell agregado) no puede dar descuentos.
+    const roles = (await admin.get('/admin/roles').expect(200)).body.roles as { id: string; name: string; permissions: string[] }[];
+    const role = await admin.post('/admin/roles', { name: 'Vendedor', permissions: ['catalog.view', 'pos.sell'] }).expect(201);
+    expect(roles.find((r) => r.name === 'Cajero')!.permissions).toContain('pos.discount');
+    await admin.post('/admin/users', { fullName: 'Vendedor', username: 'vende@negocio.com', password: 'Secreta123!', roleId: role.body.id, branchIds: [branchId] }).expect(201);
+    const vendedor = client(app, await loginAs(app, 'vende@negocio.com'), branchId);
+    await vendedor.post('/sales', { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }], discount: 100, payments: [{ method: 'CASH', amount: 14900 }] }).expect(403);
+    await vendedor.post('/sales', { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }], payments: [{ method: 'CASH', amount: 15000 }] }).expect(201);
+  });
 });

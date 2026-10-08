@@ -38,6 +38,14 @@ export function SaleDetailView({ sale }: { sale: SaleDetail }) {
         ))}
       </ul>
       <div className="space-y-1">
+        {sale.discount > 0 && (
+          <>
+            <div className="flex justify-between"><span>Productos</span><span className="tabular-nums">{formatCOP(sale.subtotal + sale.discount)}</span></div>
+            <div className="flex justify-between text-emerald-700">
+              <span>Descuento{sale.discountNote && ` (${sale.discountNote})`}</span><span className="tabular-nums">−{formatCOP(sale.discount)}</span>
+            </div>
+          </>
+        )}
         <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{formatCOP(sale.subtotal)}</span></div>
         {sale.tipAmount > 0 && (
           <div className="flex justify-between"><span>Propina ({sale.tipMethod && PAYMENT_LABELS[sale.tipMethod]})</span><span className="tabular-nums">{formatCOP(sale.tipAmount)}</span></div>

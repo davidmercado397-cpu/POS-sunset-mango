@@ -38,7 +38,10 @@ export interface SaleDetail {
   status: 'OPEN' | 'COMPLETED' | 'VOIDED';
   customerName: string | null;
   notes: string | null;
+  /** Ya con el descuento aplicado */
   subtotal: number;
+  discount: number;
+  discountNote: string | null;
   tipAmount: number;
   tipMethod: PaymentMethod | null;
   createdAt: string;

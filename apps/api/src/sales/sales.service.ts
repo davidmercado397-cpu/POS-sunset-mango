@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentMethod, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { CashService } from '../cash/cash.service';
@@ -103,7 +103,7 @@ export class SalesService {
       await this.cash.lockOpen(tx, session.id);
       const lines = await this.priceItems(tx, tenantId, branch, dto.items);
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
-      const pay = this.validatePayments(branch, subtotal, dto);
+      const pay = this.validatePayments(user, branch, subtotal, dto);
       const number = await this.nextNumber(tx, branch.id);
       const sale = await tx.sale.create({
         data: {
@@ -114,7 +114,9 @@ export class SalesService {
           status: 'COMPLETED',
           customerName: dto.customerName?.trim() || null,
           notes: dto.notes?.trim() || null,
-          subtotal,
+          subtotal: pay.subtotal,
+          discount: pay.discount,
+          discountNote: pay.discountNote,
           tipAmount: pay.tipAmount,
           tipMethod: pay.tipMethod,
           createdById: user.id,
@@ -128,6 +130,7 @@ export class SalesService {
       return sale.id;
     });
     this.kitchen.notify(branch.id);
+    await this.logDiscount(user, branch, saleId, dto);
     return this.detail(user, branch, saleId);
   }
 
@@ -220,13 +223,15 @@ export class SalesService {
       const items = await tx.saleItem.findMany({ where: { saleId: sale.id }, include: { modifiers: true } });
       if (!items.length) throw new BadRequestException('La cuenta no tiene productos');
       const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
-      const pay = this.validatePayments(branch, subtotal, dto);
+      const pay = this.validatePayments(user, branch, subtotal, dto);
       await tx.sale.update({
         where: { id: sale.id },
         data: {
           status: 'COMPLETED',
           cashSessionId: session.id,
-          subtotal,
+          subtotal: pay.subtotal,
+          discount: pay.discount,
+          discountNote: pay.discountNote,
           tipAmount: pay.tipAmount,
           tipMethod: pay.tipMethod,
           completedAt: new Date(),
@@ -238,6 +243,7 @@ export class SalesService {
       await this.consumeInventory(tx, user, branch, sale.id, lines);
     });
     this.kitchen.notify(branch.id);
+    await this.logDiscount(user, branch, id, dto);
     return this.detail(user, branch, id);
   }
 
@@ -326,7 +332,8 @@ export class SalesService {
       if (['COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status)) throw new BadRequestException('El pedido ya fue cerrado');
 
       const snapshot = order.items as unknown as Omit<PricedLine, 'consumption' | 'sendToKitchen'>[];
-      const pay = this.validatePayments(branch, order.total, dto);
+      if (dto.discount) throw new BadRequestException('Los pedidos en línea no admiten descuento');
+      const pay = this.validatePayments(user, branch, order.total, dto);
       const number = await this.nextNumber(tx, branch.id);
       const sale = await tx.sale.create({
         data: {
@@ -456,9 +463,16 @@ export class SalesService {
     });
   }
 
-  private validatePayments(branch: BranchContext, subtotal: number, dto: PayDto) {
+  /** `gross` es la suma de los productos; devuelve el subtotal ya con el descuento aplicado. */
+  private validatePayments(user: AuthUser, branch: BranchContext, gross: number, dto: PayDto) {
     const tipAmount = dto.tipAmount ?? 0;
     if (tipAmount > 0 && !branch.modules.includes('tips')) throw new BadRequestException('Las propinas no están activas en esta sede');
+    const discount = dto.discount ?? 0;
+    if (discount > 0) {
+      if (!user.permissions.includes('pos.discount')) throw new ForbiddenException('No tienes permiso para aplicar descuentos');
+      if (discount >= gross) throw new BadRequestException('El descuento debe ser menor que el valor de los productos');
+    }
+    const subtotal = gross - discount;
     const total = subtotal + tipAmount;
     const paid = dto.payments.reduce((s, p) => s + p.amount, 0);
     if (paid !== total) {
@@ -478,7 +492,16 @@ export class SalesService {
       }
       return { method: p.method, amount: p.amount, received: null, change: null, reference: p.reference?.trim() || null };
     });
-    return { tipAmount, tipMethod, payments };
+    const discountNote = discount > 0 ? dto.discountNote?.trim() || null : null;
+    return { subtotal, discount, discountNote, tipAmount, tipMethod, payments };
+  }
+
+  private async logDiscount(user: AuthUser, branch: BranchContext, saleId: string, dto: PayDto) {
+    if (!dto.discount) return;
+    await this.audit.log({
+      tenantId: tenantOf(user), branchId: branch.id, userId: user.id, action: 'sale.discount', entity: 'Sale', entityId: saleId,
+      data: { amount: dto.discount, note: dto.discountNote?.trim() || undefined },
+    });
   }
 
   private async nextNumber(tx: Tx, branchId: string): Promise<number> {

@@ -89,6 +89,7 @@ export function PosPage() {
         <CheckoutModal
           subtotal={cart.total}
           tipsEnabled={tipsEnabled}
+          allowDiscount={can('pos.discount')}
           loading={sell.isPending}
           onClose={() => setCheckout(false)}
           onConfirm={(p) =>

@@ -17,6 +17,7 @@ export const PERMISSION_CATALOG = [
   { key: 'catalog.delete', label: 'Eliminar productos inactivos', group: 'Catálogo' },
   // POS y ventas
   { key: 'pos.sell', label: 'Vender en el POS', group: 'Ventas', module: 'pos' },
+  { key: 'pos.discount', label: 'Aplicar descuentos en las ventas', group: 'Ventas', module: 'pos' },
   { key: 'sales.view', label: 'Ver historial de ventas', group: 'Ventas', module: 'pos' },
   { key: 'sales.void', label: 'Anular ventas', group: 'Ventas', module: 'pos' },
   // Caja
@@ -65,7 +66,7 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
     name: 'Administrador de sede',
     description: 'Opera la sede: caja, anulaciones, inventario y reportes',
     permissions: [
-      'catalog.view', 'pos.sell', 'sales.view', 'sales.void',
+      'catalog.view', 'pos.sell', 'pos.discount', 'sales.view', 'sales.void',
       'cash.open', 'cash.close', 'cash.movements', 'cash.view', 'cash.monthly',
       'inventory.view', 'inventory.adjust', 'purchases.manage', 'transfers.manage',
       'kitchen.view', 'tables.manage', 'reports.view', 'online.manage',
@@ -74,7 +75,7 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
   {
     name: 'Cajero',
     description: 'Vende y maneja su caja',
-    permissions: ['catalog.view', 'pos.sell', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage'],
+    permissions: ['catalog.view', 'pos.sell', 'pos.discount', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage'],
   },
   {
     name: 'Mesero',

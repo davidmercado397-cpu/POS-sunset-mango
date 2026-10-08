@@ -11,6 +11,8 @@ export interface PaymentPayload {
   payments: { method: PaymentMethod; amount: number; received?: number; reference?: string }[];
   tipAmount: number;
   tipMethod?: PaymentMethod;
+  discount?: number;
+  discountNote?: string;
 }
 
 interface Row { method: PaymentMethod; amount: number; received: number; reference: string }
@@ -22,13 +24,16 @@ const METHODS: { method: PaymentMethod; icon: typeof Banknote }[] = [
 ];
 
 /** Cobro con uno o varios métodos de pago, propina opcional y cálculo del cambio. */
-export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfirm, defaultMethod = 'CASH', defaultReceived = 0 }: {
-  subtotal: number; tipsEnabled: boolean; loading: boolean; onClose: () => void; onConfirm: (p: PaymentPayload) => void;
+export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = false, loading, onClose, onConfirm, defaultMethod = 'CASH', defaultReceived = 0 }: {
+  subtotal: number; tipsEnabled: boolean; allowDiscount?: boolean; loading: boolean; onClose: () => void; onConfirm: (p: PaymentPayload) => void;
   defaultMethod?: PaymentMethod; defaultReceived?: number;
 }) {
   const [tip, setTip] = useState(0);
+  const [discount, setDiscount] = useState(0);
+  const [discountNote, setDiscountNote] = useState('');
   const [tipMethod, setTipMethod] = useState<PaymentMethod | ''>('');
-  const [rows, setRows] = useState<Row[]>([{ method: defaultMethod, amount: subtotal, received: defaultMethod === 'CASH' ? defaultReceived : 0, reference: '' }]);
+  const [rows, setRows] = useState<Row[]>([{ method: defaultMethod, amount: gross, received: defaultMethod === 'CASH' ? defaultReceived : 0, reference: '' }]);
+  const subtotal = gross - discount;
   const total = subtotal + tip;
   const paid = rows.reduce((s, r) => s + r.amount, 0);
   const remaining = total - paid;
@@ -41,6 +46,11 @@ export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfi
   const changeTip = (value: number) => {
     setTip(value);
     if (rows.length === 1) setRows([{ ...rows[0], amount: subtotal + value }]);
+  };
+  // Igual con el descuento: el pago único pasa a ser el nuevo total.
+  const changeDiscount = (value: number) => {
+    setDiscount(value);
+    if (rows.length === 1) setRows([{ ...rows[0], amount: gross - value + tip }]);
   };
 
   const cashRow = rows.find((r) => r.method === 'CASH');
@@ -56,6 +66,7 @@ export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfi
   }, [cashRow]);
 
   const errors: string[] = [];
+  if (discount >= gross && discount > 0) errors.push('El descuento debe ser menor que el valor de los productos');
   if (remaining !== 0) errors.push(remaining > 0 ? `Faltan ${formatCOP(remaining)}` : `Sobran ${formatCOP(-remaining)}`);
   if (cashRow && cashRow.received > 0 && cashRow.received < cashRow.amount) errors.push('El efectivo recibido es menor al valor en efectivo');
   if (rows.some((r) => r.amount <= 0)) errors.push('Hay pagos en cero');
@@ -70,6 +81,7 @@ export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfi
       })),
       tipAmount: tip,
       tipMethod: effectiveTipMethod,
+      ...(discount > 0 ? { discount, discountNote: discountNote.trim() || undefined } : {}),
     });
   }
 
@@ -78,10 +90,23 @@ export function CheckoutModal({ subtotal, tipsEnabled, loading, onClose, onConfi
       footer={<Button className="w-full" disabled={errors.length > 0} loading={loading} onClick={confirm}>Confirmar pago {formatCOP(total)}</Button>}>
       <div className="space-y-5">
         <div className="rounded-2xl bg-slate-900 p-4 text-white">
+          {discount > 0 && (
+            <>
+              <div className="flex justify-between text-sm text-slate-300"><span>Productos</span><span>{formatCOP(gross)}</span></div>
+              <div className="flex justify-between text-sm text-emerald-300"><span>Descuento</span><span>−{formatCOP(discount)}</span></div>
+            </>
+          )}
           <div className="flex justify-between text-sm text-slate-300"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
           {tip > 0 && <div className="flex justify-between text-sm text-slate-300"><span>Propina</span><span>{formatCOP(tip)}</span></div>}
           <div className="mt-1 flex items-baseline justify-between"><span className="text-lg">Total</span><span className="text-3xl font-bold tabular-nums">{formatCOP(total)}</span></div>
         </div>
+
+        {allowDiscount && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Descuento en dinero (opcional)"><MoneyInput value={discount} onChange={changeDiscount} placeholder="0" /></Field>
+            {discount > 0 && <Field label="Motivo del descuento (opcional)"><Input value={discountNote} maxLength={120} onChange={(e) => setDiscountNote(e.target.value)} /></Field>}
+          </div>
+        )}
 
         {tipsEnabled && (
           <div className="grid gap-3 sm:grid-cols-2">

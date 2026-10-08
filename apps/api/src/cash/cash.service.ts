@@ -17,6 +17,8 @@ export interface CashSummary {
   salesCount: number;
   voidedCount: number;
   salesTotal: number;
+  /** Descuentos otorgados (ya restados de salesTotal) */
+  discountsTotal?: number;
   tipsTotal: number;
   /** Dinero recibido por método (ventas + propinas) */
   collected: ByMethod;
@@ -52,7 +54,7 @@ export class CashService {
     const session = await db.cashSession.findUniqueOrThrow({ where: { id: sessionId } });
     const [payments, sales, voided, movements] = await Promise.all([
       db.payment.groupBy({ by: ['method'], where: { sale: { cashSessionId: sessionId, status: 'COMPLETED' } }, _sum: { amount: true } }),
-      db.sale.findMany({ where: { cashSessionId: sessionId, status: 'COMPLETED' }, select: { subtotal: true, tipAmount: true, tipMethod: true } }),
+      db.sale.findMany({ where: { cashSessionId: sessionId, status: 'COMPLETED' }, select: { subtotal: true, discount: true, tipAmount: true, tipMethod: true } }),
       db.sale.count({ where: { cashSessionId: sessionId, status: 'VOIDED' } }),
       db.cashMovement.groupBy({ by: ['type', 'method'], where: { sessionId }, _sum: { amount: true } }),
     ]);
@@ -75,6 +77,7 @@ export class CashService {
       salesCount: sales.length,
       voidedCount: voided,
       salesTotal: sales.reduce((s, x) => s + x.subtotal, 0),
+      discountsTotal: sales.reduce((s, x) => s + x.discount, 0),
       tipsTotal: sales.reduce((s, x) => s + x.tipAmount, 0),
       collected,
       sales: salesBy,

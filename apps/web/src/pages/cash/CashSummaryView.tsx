@@ -9,7 +9,7 @@ export function CashSummaryView({ summary }: { summary: CashSummary }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Ventas" value={formatCOP(summary.salesTotal)} hint={`${summary.salesCount} ventas${summary.voidedCount ? ` · ${summary.voidedCount} anuladas` : ''}`} />
+        <Stat label="Ventas" value={formatCOP(summary.salesTotal)} hint={[`${summary.salesCount} ventas`, summary.voidedCount ? `${summary.voidedCount} anuladas` : '', summary.discountsTotal ? `Descuentos ${formatCOP(summary.discountsTotal)}` : ''].filter(Boolean).join(' · ')} />
         <Stat label="Propinas" value={formatCOP(summary.tipsTotal)} hint="Separadas de las ventas" />
         <Stat
           label="Gastos y salidas (efectivo)"

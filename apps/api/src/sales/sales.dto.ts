@@ -42,6 +42,13 @@ export class PayDto {
 
   @IsOptional() @IsEnum(PaymentMethod)
   tipMethod?: PaymentMethod;
+
+  /** Descuento en dinero sobre el valor de los productos */
+  @IsOptional() @IsInt() @Min(0) @Max(1_000_000_000)
+  discount?: number;
+
+  @IsOptional() @IsString() @MaxLength(120)
+  discountNote?: string;
 }
 
 export class CreateSaleDto extends PayDto {

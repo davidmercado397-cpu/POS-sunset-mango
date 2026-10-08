@@ -376,7 +376,11 @@ model Sale {
   tableId       String?
   customerName  String?
   notes         String?
+  /// Valor cobrado por los productos, ya con el descuento aplicado
   subtotal      Int            @default(0)
+  /// Descuento en dinero sobre la venta (los productos suman subtotal + discount)
+  discount      Int            @default(0)
+  discountNote  String?
   tipAmount     Int            @default(0)
   tipMethod     PaymentMethod?
   createdById   String

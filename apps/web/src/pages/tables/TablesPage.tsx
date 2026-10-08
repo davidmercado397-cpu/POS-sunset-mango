@@ -196,7 +196,7 @@ function OrderScreen({ menu, target, onBack, onOpened }: { menu: Menu; target: T
       )}
 
       {paying && order.data && (
-        <CheckoutModal subtotal={order.data.subtotal} tipsEnabled={menu.modules.includes('tips')} loading={pay.isPending}
+        <CheckoutModal subtotal={order.data.subtotal} tipsEnabled={menu.modules.includes('tips')} allowDiscount={can('pos.discount')} loading={pay.isPending}
           onClose={() => setPaying(false)}
           onConfirm={(p) => pay.mutate(p, {
             onSuccess: (sale) => {

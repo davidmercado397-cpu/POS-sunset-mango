@@ -29,7 +29,7 @@ export class ReportsService {
     const adminWhere: Prisma.AdminExpenseWhereInput = { tenantId, date: range, ...(all ? {} : { branchId: branch.id }) };
     const [adminExpenses, totals, voided, payments, tips, byDay, byHour, topProducts, byUser, expenses, purchases, cogs, sessions, byBranch] = await Promise.all([
       this.prisma.adminExpense.aggregate({ where: adminWhere, _sum: { amount: true } }),
-      this.prisma.sale.aggregate({ where: saleWhere, _sum: { subtotal: true, tipAmount: true }, _count: true }),
+      this.prisma.sale.aggregate({ where: saleWhere, _sum: { subtotal: true, discount: true, tipAmount: true }, _count: true }),
       this.prisma.sale.aggregate({ where: { tenantId, branchId: { in: branchIds }, status: 'VOIDED', voidedAt: range }, _sum: { subtotal: true }, _count: true }),
       this.prisma.payment.groupBy({ by: ['method'], where: { sale: saleWhere }, _sum: { amount: true } }),
       this.prisma.sale.groupBy({ by: ['tipMethod'], where: { ...saleWhere, tipAmount: { gt: 0 } }, _sum: { tipAmount: true } }),
@@ -119,6 +119,7 @@ export class ReportsService {
       totals: {
         salesCount: totals._count,
         salesTotal,
+        discounts: totals._sum.discount ?? 0,
         tips: totals._sum.tipAmount ?? 0,
         avgTicket: totals._count ? Math.round(salesTotal / totals._count) : 0,
         voidedCount: voided._count,
