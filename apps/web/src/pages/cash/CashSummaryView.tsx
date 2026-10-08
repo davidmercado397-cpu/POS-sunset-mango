@@ -16,7 +16,7 @@ export function CashSummaryView({ summary }: { summary: CashSummary }) {
           value={formatCOP(summary.expenses + summary.withdrawals)}
           hint={[summary.expensesTransfer ? `Gastos por transferencia ${formatCOP(summary.expensesTransfer)}` : '', summary.deposits ? `Entradas ${formatCOP(summary.deposits)}` : ''].filter(Boolean).join(' · ') || undefined}
         />
-        <Stat label="Base inicial" value={formatCOP(summary.openingAmount)} />
+        <Stat label="Base del día" value={formatCOP(summary.openingAmount)} />
       </div>
       <Table>
         <thead>

@@ -119,30 +119,37 @@ function MovementsList({ movements }: { movements: CashMovement[] }) {
 }
 
 function OpenCash({ denominations }: { denominations: number[] }) {
-  const [byCount, setByCount] = useState(true);
+  const [byCount, setByCount] = useState(false);
   const [count, setCount] = useState<Record<string, number>>({});
   const [amount, setAmount] = useState(0);
   const [notes, setNotes] = useState('');
+  const base = byCount ? countTotal(denominations, count) : amount;
   const open = useApiMutation(
-    () => api('/cash/open', { method: 'POST', json: byCount ? { openingAmount: countTotal(denominations, count), openingCount: count, notes: notes || undefined } : { openingAmount: amount, notes: notes || undefined } }),
+    () => api('/cash/open', { method: 'POST', json: byCount ? { openingAmount: base, openingCount: count, notes: notes || undefined } : { openingAmount: base, notes: notes || undefined } }),
     { invalidate: [['cash'], ['pos']], success: 'Caja abierta' },
   );
+  function submit() {
+    if (base === 0 && !confirm('¿Abrir la caja sin base (en $0)?')) return;
+    open.mutate();
+  }
   return (
     <Card className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center gap-3">
         <span className="rounded-xl bg-slate-100 p-3"><Lock className="size-6 text-slate-600" /></span>
         <div>
           <p className="text-lg font-semibold">Abrir caja</p>
-          <p className="text-sm text-slate-500">Registra la base en efectivo con la que inicia el turno.</p>
+          <p className="text-sm text-slate-500">Ingresa la base del día: el efectivo con el que inicia la caja. Se suma al efectivo esperado en el cierre.</p>
         </div>
       </div>
-      <Checkbox label="Contar por billetes y monedas" checked={byCount} onChange={(e) => setByCount(e.target.checked)} />
-      {byCount ? <DenominationCounter denominations={denominations} value={count} onChange={setCount} /> : (
-        <Field label="Base inicial"><MoneyInput value={amount} onChange={setAmount} /></Field>
+      {byCount ? (
+        <DenominationCounter denominations={denominations} value={count} onChange={setCount} />
+      ) : (
+        <Field label="Base del día"><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
       )}
+      <Checkbox label="Calcular la base contando billetes y monedas" checked={byCount} onChange={(e) => setByCount(e.target.checked)} />
       <Field label="Observaciones (opcional)"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
-      <Button className="w-full" loading={open.isPending} onClick={() => open.mutate()}>
-        Abrir caja con {formatCOP(byCount ? countTotal(denominations, count) : amount)}
+      <Button className="min-h-12 w-full text-base" loading={open.isPending} onClick={submit}>
+        Abrir caja con base de {formatCOP(base)}
       </Button>
     </Card>
   );
