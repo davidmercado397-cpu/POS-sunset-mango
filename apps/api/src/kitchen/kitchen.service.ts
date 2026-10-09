@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { KitchenStatus, Prisma } from '@prisma/client';
 import { BranchContext } from '../common/auth-user';
+import { dayRange } from '../common/util';
 import { PrismaService } from '../prisma/prisma.service';
 import { KitchenGateway } from './kitchen.gateway';
 
@@ -14,8 +15,8 @@ export interface KitchenTicketItem {
 }
 
 const NEXT: Record<KitchenStatus, KitchenStatus[]> = {
-  PENDING: ['PREPARING', 'READY', 'CANCELLED'],
-  PREPARING: ['READY', 'PENDING', 'CANCELLED'],
+  PENDING: ['PREPARING', 'READY', 'DELIVERED', 'CANCELLED'],
+  PREPARING: ['READY', 'PENDING', 'DELIVERED', 'CANCELLED'],
   READY: ['DELIVERED', 'PREPARING'],
   DELIVERED: ['READY'],
   CANCELLED: [],
@@ -58,5 +59,17 @@ export class KitchenService {
     const updated = await this.prisma.kitchenTicket.update({ where: { id }, data: { status } });
     this.notify(branch.id);
     return updated;
+  }
+
+  /** Cierra (marca como entregadas) las comandas abiertas: solo las de días anteriores o todas. */
+  async closeOpen(branch: BranchContext, scope: 'previous' | 'all') {
+    const where: Prisma.KitchenTicketWhereInput = {
+      branchId: branch.id,
+      status: { in: ['PENDING', 'PREPARING', 'READY'] },
+      ...(scope === 'previous' ? { createdAt: { lt: dayRange().gte } } : {}),
+    };
+    const { count } = await this.prisma.kitchenTicket.updateMany({ where, data: { status: 'DELIVERED' } });
+    if (count) this.notify(branch.id);
+    return { closed: count };
   }
 }

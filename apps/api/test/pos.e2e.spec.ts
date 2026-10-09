@@ -307,4 +307,24 @@ describe('Caja, POS, inventario y mesas', () => {
     await vendedor.post('/sales', { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }], discount: 100, payments: [{ method: 'CASH', amount: 14900 }] }).expect(403);
     await vendedor.post('/sales', { items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }], payments: [{ method: 'CASH', amount: 15000 }] }).expect(201);
   });
+
+  it('cocina: cerrar una comanda directamente y cerrar las de días anteriores o todas', async () => {
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    const order = () => sell({ tipAmount: 0, tipMethod: undefined, payments: [{ method: 'CASH', amount: 36000 }] }).expect(201);
+    await order(); await order(); await order();
+    let tickets = (await admin.get('/kitchen/tickets').expect(200)).body as { id: string; status: string }[];
+    expect(tickets).toHaveLength(3);
+
+    // Una pendiente se puede cerrar sin pasar por preparación.
+    await admin.patch(`/kitchen/tickets/${tickets[0].id}`, { status: 'DELIVERED' }).expect(200);
+    // Simula una comanda olvidada de hace dos días.
+    await prisma.kitchenTicket.update({ where: { id: tickets[1].id }, data: { createdAt: new Date(Date.now() - 2 * 86400_000) } });
+
+    await admin.post('/kitchen/tickets/close', { scope: 'otra' }).expect(400);
+    expect((await admin.post('/kitchen/tickets/close', { scope: 'previous' }).expect(200)).body).toEqual({ closed: 1 });
+    tickets = (await admin.get('/kitchen/tickets').expect(200)).body;
+    expect(tickets.filter((t) => t.status === 'PENDING').map((t) => t.id)).toEqual([tickets[2].id]);
+    expect((await admin.post('/kitchen/tickets/close', { scope: 'all' }).expect(200)).body).toEqual({ closed: 1 });
+    expect(await prisma.kitchenTicket.count({ where: { status: { in: ['PENDING', 'PREPARING', 'READY'] } } })).toBe(0);
+  });
 });

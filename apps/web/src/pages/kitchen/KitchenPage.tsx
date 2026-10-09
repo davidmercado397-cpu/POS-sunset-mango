@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Bell, BellOff, Maximize, Wifi, WifiOff } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Maximize, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { Badge, Button, PageHeader, Tabs } from '../../components/ui';
+import { Alert, Badge, Button, PageHeader, Tabs } from '../../components/ui';
 import { api } from '../../lib/api';
 import { formatTime } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
@@ -54,7 +54,14 @@ export function KitchenPage() {
     invalidate: [['kitchen', branchId]],
   });
 
+  const closeMany = useApiMutation((scope: 'previous' | 'all') => api<{ closed: number }>('/kitchen/tickets/close', { method: 'POST', json: { scope } }), {
+    invalidate: [['kitchen', branchId]], success: 'Comandas cerradas',
+  });
+
   const byStatus = (s: Status) => (tickets.data ?? []).filter((t) => t.status === s);
+  const open = (tickets.data ?? []).filter((t) => t.status !== 'DELIVERED' && t.status !== 'CANCELLED');
+  const todayStart = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00').getTime();
+  const previous = open.filter((t) => new Date(t.createdAt).getTime() < todayStart).length;
 
   return (
     <div className="mx-auto max-w-[1600px]">
@@ -68,11 +75,27 @@ export function KitchenPage() {
         }
         actions={
           <>
+            {open.length > 0 && (
+              <Button variant="secondary" loading={closeMany.isPending}
+                onClick={() => confirm(`¿Cerrar las ${open.length} comandas abiertas? Se marcarán como entregadas.`) && closeMany.mutate('all')}>
+                <CheckCheck className="size-4" /> Cerrar todas
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => setSound(!sound)}>{sound ? <Bell className="size-4" /> : <BellOff className="size-4" />} Sonido</Button>
             <Button variant="secondary" onClick={() => document.documentElement.requestFullscreen?.()}><Maximize className="size-4" /> Pantalla completa</Button>
           </>
         }
       />
+      {previous > 0 && (
+        <div className="mb-4">
+          <Alert tone="info">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>Hay {previous} comanda{previous === 1 ? '' : 's'} de días anteriores sin cerrar.</span>
+              <Button variant="secondary" loading={closeMany.isPending} onClick={() => closeMany.mutate('previous')}>Cerrar las de días anteriores</Button>
+            </div>
+          </Alert>
+        </div>
+      )}
       <div className="lg:hidden">
         <Tabs value={mobileTab} onChange={setMobileTab} tabs={COLUMNS.map((c) => ({ value: c.status, label: `${c.title} (${byStatus(c.status).length})` }))} />
       </div>
@@ -104,6 +127,10 @@ export function KitchenPage() {
                   </ul>
                   <footer className="flex gap-2 border-t border-slate-100 p-3">
                     {col.status === 'PREPARING' && <Button variant="ghost" onClick={() => move.mutate({ id: t.id, status: 'PENDING' })}>Regresar</Button>}
+                    {col.status !== 'READY' && (
+                      <Button variant="ghost" title="Marcar como entregada sin pasar por los demás estados"
+                        onClick={() => confirm(`¿Cerrar la comanda ${t.label}?`) && move.mutate({ id: t.id, status: 'DELIVERED' })}>Cerrar</Button>
+                    )}
                     {col.next && <Button className="flex-1" onClick={() => move.mutate({ id: t.id, status: col.next! })}>{col.action}</Button>}
                   </footer>
                 </article>
