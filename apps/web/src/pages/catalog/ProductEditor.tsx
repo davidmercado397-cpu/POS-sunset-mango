@@ -109,7 +109,7 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
     <Modal open onClose={onClose} size="xl" title={product ? 'Editar producto' : 'Nuevo producto'}
       footer={
         <>
-          {product && !product.isActive && can('catalog.delete') && (
+          {product && can('catalog.delete') && (
             <Button variant="danger" className="mr-auto" disabled={saving} onClick={removeProduct}><Trash2 className="size-4" /> Eliminar</Button>
           )}
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>

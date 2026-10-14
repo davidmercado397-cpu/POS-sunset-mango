@@ -190,9 +190,7 @@ describe('Caja, POS, inventario y mesas', () => {
       .expect(201);
     expect(combo.body.comboItems.map((c: { name: string }) => c.name)).toEqual(['Hamburguesa', 'Papas', 'Gaseosa']);
     await admin.post('/catalog/products', { name: 'Súper combo', price: 1, isCombo: true, comboItems: [{ productId: combo.body.id, quantity: 1 }] }).expect(400);
-    await prisma.product.update({ where: { id: papas }, data: { isActive: false } });
     expect((await admin.delete(`/catalog/products/${papas}`).expect(400)).body.message).toContain('Combo Clásico');
-    await prisma.product.update({ where: { id: papas }, data: { isActive: true } });
 
     const menu = await admin.get('/pos/menu').expect(200);
     expect(menu.body.products.find((p: { id: string }) => p.id === combo.body.id).comboItems).toHaveLength(3);
@@ -259,12 +257,10 @@ describe('Caja, POS, inventario y mesas', () => {
     expect(menu.products.map((p: { name: string }) => p.name)).toEqual(['Granizado de mango', 'Hamburguesa', 'Agua']);
   });
 
-  it('el administrador elimina productos inactivos y el historial de ventas se conserva', async () => {
+  it('el administrador elimina productos y el historial de ventas se conserva', async () => {
     await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
     const sale = await sell({ tipAmount: 0, tipMethod: undefined, payments: [{ method: 'CASH', amount: 36000 }] }).expect(201);
 
-    expect((await admin.delete(`/catalog/products/${burger.id}`).expect(400)).body.message).toContain('desactiva');
-    await prisma.product.update({ where: { id: burger.id }, data: { isActive: false } });
 
     const roles = (await admin.get('/admin/roles').expect(200)).body.roles as { id: string; name: string; permissions: string[] }[];
     const sede = roles.find((r) => r.name === 'Administrador de sede')!;

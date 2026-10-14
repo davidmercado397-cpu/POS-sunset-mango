@@ -249,7 +249,6 @@ export class CatalogService {
     const tenantId = tenantOf(user);
     const product = await this.prisma.product.findFirst({ where: { id, tenantId } });
     if (!product) throw new NotFoundException('Producto no encontrado');
-    if (product.isActive) throw new BadRequestException('Primero desactiva el producto para poder eliminarlo');
     const inCombos = await this.prisma.comboItem.findMany({ where: { productId: id }, include: { combo: { select: { name: true } } } });
     if (inCombos.length) {
       throw new BadRequestException(`Está incluido en: ${[...new Set(inCombos.map((c) => c.combo.name))].join(', ')}. Quítalo de esos combos o desactívalo`);
