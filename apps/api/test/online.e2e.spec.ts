@@ -2,7 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createApp, createSuperAdmin, resetDb, setupTenant } from './helpers';
+import { createApp, createSuperAdmin, PASSWORD, resetDb, setupTenant } from './helpers';
 
 describe('Pedidos en línea', () => {
   let app: NestExpressApplication;
@@ -125,17 +125,17 @@ describe('Pedidos en línea', () => {
     expect(settings.body).toMatchObject({ storeSubdomain: 'tienda-1', storeUrl: 'https://tienda-1.pedidos.test.co' });
 
     const host = (h: string) => pub().get('/api/public/host').set('Host', h);
-    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: 'tienda' });
-    expect((await host('otra.pedidos.test.co')).body).toEqual({ store: null });
-    expect((await host('pos.midominio.com')).body).toEqual({ store: null });
+    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: 'tienda', tenant: null });
+    expect((await host('otra.pedidos.test.co')).body).toEqual({ store: null, tenant: null });
+    expect((await host('pos.midominio.com')).body).toEqual({ store: null, tenant: null });
 
     // El negocio cambia su subdominio; validaciones y reservados.
     await ctx.admin.put('/online/subdomain', { storeSubdomain: 'Sunset Mango!' }).expect(400);
     await ctx.admin.put('/online/subdomain', { storeSubdomain: 'www' }).expect(400);
     settings = await ctx.admin.put('/online/subdomain', { storeSubdomain: 'sunsetmango' }).expect(200);
     expect(settings.body.storeUrl).toBe('https://sunsetmango.pedidos.test.co');
-    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: 'tienda' });
-    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: null });
+    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: 'tienda', tenant: null });
+    expect((await host('tienda-1.pedidos.test.co')).body).toEqual({ store: null, tenant: null });
 
     // Otro negocio no puede tomar el mismo subdominio.
     const other = await setupTenant(app, ['online'], 'otro-negocio');
@@ -143,7 +143,7 @@ describe('Pedidos en línea', () => {
 
     // El Super Admin asigna un dominio propio.
     await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { storeDomain: 'https://Pedidos.SunsetMango.com/' }).expect(200);
-    expect((await host('pedidos.sunsetmango.com')).body).toEqual({ store: 'tienda' });
+    expect((await host('pedidos.sunsetmango.com')).body).toEqual({ store: 'tienda', tenant: null });
     expect((await ctx.admin.get('/online/settings')).body.storeUrl).toBe('https://pedidos.sunsetmango.com');
     await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeDomain: 'pedidos.sunsetmango.com' }).expect(409);
     await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { storeDomain: '' }).expect(200);
@@ -152,17 +152,48 @@ describe('Pedidos en línea', () => {
     // Subdominio vacío: la tienda queda en el dominio de tiendas directamente (un solo negocio).
     settings = await ctx.admin.put('/online/subdomain', { storeSubdomain: '' }).expect(200);
     expect(settings.body).toMatchObject({ storeSubdomain: null, storeDomain: 'pedidos.test.co', storeUrl: 'https://pedidos.test.co' });
-    expect((await host('pedidos.test.co')).body).toEqual({ store: 'tienda' });
+    expect((await host('pedidos.test.co')).body).toEqual({ store: 'tienda', tenant: null });
     await other.admin.put('/online/subdomain', { storeSubdomain: '' }).expect(409);
     await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeSubdomain: '', storeDomain: '' }).expect(409);
     // Al volver a un subdominio, libera el dominio para otro negocio.
     await ctx.admin.put('/online/subdomain', { storeSubdomain: 'sunsetmango' }).expect(200);
-    expect((await host('pedidos.test.co')).body).toEqual({ store: null });
+    expect((await host('pedidos.test.co')).body).toEqual({ store: null, tenant: null });
     await other.master.patch(`/platform/tenants/${other.tenantId}`, { storeSubdomain: '', storeDomain: '' }).expect(200);
-    expect((await host('pedidos.test.co')).body).toEqual({ store: 'otro-negocio' });
+    expect((await host('pedidos.test.co')).body).toEqual({ store: 'otro-negocio', tenant: null });
 
     // Un negocio suspendido o sin el módulo no responde en su subdominio.
     await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { isActive: false }).expect(200);
-    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: null });
+    expect((await host('sunsetmango.pedidos.test.co')).body).toEqual({ store: null, tenant: null });
+  });
+
+  it('subdominio propio del restaurante: tienda en la raíz e ingreso solo para su personal', async () => {
+    const other = await setupTenant(app, ['online'], 'otro');
+    const otherTenant = `/platform/tenants/${other.tenantId}`;
+    await ctx.master.patch(otherTenant, { appSubdomain: 'pos' }).expect(400); // lo usa la app principal
+    await ctx.master.patch(otherTenant, { appSubdomain: 'admin' }).expect(400); // reservado
+    const saved = await ctx.master.patch(otherTenant, { appSubdomain: 'otro restaurante' }).expect(400);
+    expect(saved.body.message).toContain('minúsculas');
+    const ok = await ctx.master.patch(otherTenant, { appSubdomain: 'otro' }).expect(200);
+    expect(ok.body).toMatchObject({ appSubdomain: 'otro', staffUrl: 'https://otro.test.co/admin', storeUrl: 'https://otro.test.co' });
+    await ctx.master.patch(`/platform/tenants/${ctx.tenantId}`, { appSubdomain: 'otro' }).expect(409);
+
+    const host = (h: string) => pub().get('/api/public/host').set('Host', h);
+    expect((await host('otro.test.co')).body).toEqual({
+      store: 'otro',
+      tenant: { slug: 'otro', name: 'Negocio otro', logoUrl: null, primaryColor: '#f97316', secondaryColor: '#7c2d12' },
+    });
+    expect((await host('nadie.test.co')).body).toEqual({ store: null, tenant: null });
+
+    // En su subdominio solo entra su personal; en la app principal entran todos.
+    const login = (username: string, h: string) => pub().post('/api/auth/login').set('Host', h).send({ username, password: PASSWORD });
+    await login('admin-otro', 'otro.test.co').expect(200);
+    await login('admin-tienda', 'otro.test.co').expect(401);
+    await login('master', 'otro.test.co').expect(401);
+    await login('admin-tienda', 'pos.test.co').expect(200);
+    await login('admin-tienda', 'nadie.test.co').expect(200); // host sin restaurante: no restringe
+
+    // Quitar el subdominio lo libera.
+    await ctx.master.patch(otherTenant, { appSubdomain: '' }).expect(200);
+    expect((await host('otro.test.co')).body.tenant).toBeNull();
   });
 });

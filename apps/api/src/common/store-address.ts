@@ -24,11 +24,16 @@ export function normalizeDomain(value: string): string {
 
 /**
  * Enlace público de la tienda de un negocio, en orden de preferencia:
- * dominio propio → subdominio del dominio de tiendas → <app>/pedir/<negocio>.
+ * dominio propio → subdominio del restaurante → subdominio del dominio de tiendas → <app>/pedir/<negocio>.
  * Devuelve una ruta relativa si no hay ningún dominio configurado (el navegador completa el origen).
  */
-export function storeUrl(tenant: Pick<Tenant, 'slug' | 'storeSubdomain' | 'storeDomain'>, env: Pick<Env, 'publicStoreDomain' | 'publicAppUrl'>): string {
+export function storeUrl(
+  tenant: Pick<Tenant, 'slug' | 'storeSubdomain' | 'storeDomain' | 'appSubdomain'>,
+  env: Pick<Env, 'publicStoreDomain' | 'publicAppUrl' | 'publicTenantDomain'>,
+): string {
   if (tenant.storeDomain) return `https://${tenant.storeDomain}`;
+  const own = tenantHost(tenant, env);
+  if (own) return `https://${own}`;
   if (env.publicStoreDomain && tenant.storeSubdomain) return `https://${tenant.storeSubdomain}.${env.publicStoreDomain}`;
   return `${env.publicAppUrl ?? ''}/pedir/${tenant.slug}`;
 }
@@ -40,4 +45,21 @@ export function subdomainFromHost(host: string, publicStoreDomain?: string): str
   if (!host.endsWith(suffix)) return null;
   const sub = host.slice(0, -suffix.length);
   return sub && !sub.includes('.') ? sub : null;
+}
+
+/** Host propio del restaurante (<appSubdomain>.<PUBLIC_TENANT_DOMAIN>) o null si no tiene. */
+export function tenantHost(tenant: Pick<Tenant, 'appSubdomain'>, env: Pick<Env, 'publicTenantDomain'>): string | null {
+  return tenant.appSubdomain && env.publicTenantDomain ? `${tenant.appSubdomain}.${env.publicTenantDomain}` : null;
+}
+
+/** Enlace de ingreso del personal en el subdominio del restaurante. */
+export function staffUrl(tenant: Pick<Tenant, 'appSubdomain'>, env: Pick<Env, 'publicTenantDomain'>): string | null {
+  const host = tenantHost(tenant, env);
+  return host ? `https://${host}/admin` : null;
+}
+
+/** Subdominio de restaurante contenido en el host (otro.sunsetmango.com.co → "otro"), o null. */
+export function appSubdomainFromHost(rawHost: string, env: Pick<Env, 'publicTenantDomain'>): string | null {
+  const host = rawHost.toLowerCase().replace(/:\d+$/, '');
+  return subdomainFromHost(host, env.publicTenantDomain);
 }

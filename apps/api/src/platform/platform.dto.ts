@@ -46,6 +46,10 @@ export class UpdateTenantDto {
   /** Vacío para quitar el dominio propio */
   @IsOptional() @IsString() @MaxLength(253)
   storeDomain?: string;
+
+  /** Subdominio propio del restaurante (tienda en / y personal en /admin); vacío para quitarlo */
+  @IsOptional() @IsString() @MaxLength(40)
+  appSubdomain?: string;
 }
 
 export class ResetPasswordDto {

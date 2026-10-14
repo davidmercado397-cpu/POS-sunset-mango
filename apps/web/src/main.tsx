@@ -6,6 +6,8 @@ import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { Toaster } from './components/toast';
 import './index.css';
+import { setHostTenant, STAFF_BASE, type HostTenant } from './lib/hostTenant';
+import { applyBrand } from './lib/theme';
 import { StoreBaseContext } from './pages/store/storeBase';
 import { StorePage } from './pages/store/StorePage';
 import { TrackPage } from './pages/store/TrackPage';
@@ -15,11 +17,11 @@ const queryClient = new QueryClient({
 });
 
 const root = createRoot(document.getElementById('root')!);
-const render = (children: ReactNode) =>
+const render = (children: ReactNode, basename?: string) =>
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter basename={basename}>
           {children}
           <Toaster />
         </BrowserRouter>
@@ -40,19 +42,30 @@ function StoreApp({ slug }: { slug: string }) {
   );
 }
 
-// Si el host es la tienda de un negocio (subdominio o dominio propio), se abre la tienda;
-// si no, la aplicación del punto de venta.
+const staffApp = (
+  <AuthProvider>
+    <App />
+  </AuthProvider>
+);
+
+// Según el host:
+// - subdominio propio de un restaurante: tienda en la raíz y app del personal en /admin;
+// - tienda de un negocio (subdominio de tiendas o dominio propio): solo la tienda;
+// - cualquier otro: la aplicación del punto de venta.
 fetch('/api/public/host')
-  .then((res) => (res.ok ? res.json() : { store: null }))
-  .catch(() => ({ store: null }))
-  .then(({ store }: { store: string | null }) => {
-    if (store) {
+  .then((res) => (res.ok ? res.json() : { store: null, tenant: null }))
+  .catch(() => ({ store: null, tenant: null }))
+  .then(({ store, tenant }: { store: string | null; tenant?: HostTenant | null }) => {
+    const path = window.location.pathname;
+    if (tenant) {
+      setHostTenant(tenant);
+      applyBrand(tenant.primaryColor, tenant.secondaryColor);
+      if (path === STAFF_BASE || path.startsWith(`${STAFF_BASE}/`)) render(staffApp, STAFF_BASE);
+      else if (store) render(<StoreApp slug={store} />);
+      else window.location.replace(STAFF_BASE);
+    } else if (store) {
       render(<StoreApp slug={store} />);
     } else {
-      render(
-        <AuthProvider>
-          <App />
-        </AuthProvider>,
-      );
+      render(staffApp);
     }
   });

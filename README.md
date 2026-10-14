@@ -50,7 +50,12 @@ Todas las fases del plan están construidas y probadas:
    - Saca un certificado comodín y agrega el bloque de subdominios del ejemplo de Nginx.
 
    Con eso, cada negocio queda automáticamente en `<subdominio>.pedidos.tudominio.com`, sin tocar el servidor por cada negocio nuevo. El subdominio se cambia desde la aplicación: el negocio lo hace en Pedidos en línea → Configuración, y el Super Admin en Negocios → General. El Super Admin también puede asignar un dominio propio (por ejemplo `pedidos.minegocio.com`), que necesita su propio registro DNS y certificado. El enlace `/pedir/<negocio>` sigue funcionando siempre.
-5. Respaldos diarios: programa [`docker/backup.sh`](./docker/backup.sh) en el crontab del VPS.
+5. **Subdominio propio por restaurante (opcional):**
+   - En `.env` define `PUBLIC_TENANT_DOMAIN=tudominio.com`.
+   - El Super Admin asigna el subdominio en Negocios → General → "Subdominio del restaurante" (ej. `otro`).
+   - Queda `https://otro.tudominio.com` para la tienda de pedidos y `https://otro.tudominio.com/admin` para el ingreso del personal, con el logo y colores del restaurante. Ahí solo pueden entrar los usuarios de ese restaurante.
+   - En el DNS crea el registro `otro` (o un comodín `*`) apuntando al servidor, y agrega el dominio en el servidor web (en Coolify, en Domains).
+6. Respaldos diarios: programa [`docker/backup.sh`](./docker/backup.sh) en el crontab del VPS.
 
 ### Datos de demostración
 
@@ -84,6 +89,7 @@ La contraseña de todos es `Demo12345`. La demo trae las ventas, los cierres dia
 | `TRUST_PROXY` | Número de proxies delante de la app (1 = el servidor web del VPS) |
 | `MAX_LOGIN_ATTEMPTS` / `LOCK_MINUTES` | Bloqueo tras intentos fallidos (5 intentos / 15 min) |
 | `PUBLIC_STORE_DOMAIN` | Dominio base de las tiendas (ej. `pedidos.tudominio.com`); cada negocio queda en un subdominio |
+| `PUBLIC_TENANT_DOMAIN` | Dominio base de los subdominios por restaurante (ej. `tudominio.com`): tienda en `<sub>.tudominio.com` y personal en `/admin` |
 | `PUBLIC_APP_URL` | URL pública de la app (ej. `https://pos.tudominio.com`), para los enlaces `/pedir/<negocio>` |
 | `ENCRYPTION_KEY` | (Opcional) Clave para cifrar llaves de terceros como Bold. Si no se define se usa `JWT_ACCESS_SECRET`; si la cambias, las llaves deben ingresarse de nuevo |
 

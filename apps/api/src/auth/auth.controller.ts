@@ -26,7 +26,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.auth.login(dto.username, dto.password, this.client(req));
+    const tokens = await this.auth.login(dto.username, dto.password, this.client(req), req.hostname || req.headers.host || '');
     return this.sendTokens(res, tokens);
   }
 

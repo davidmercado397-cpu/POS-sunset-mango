@@ -20,6 +20,9 @@ model Tenant {
   storeSubdomain   String?  @unique
   /// Dominio propio opcional para la tienda (ej. pedidos.minegocio.com)
   storeDomain      String?  @unique
+  /// Subdominio propio del restaurante: <appSubdomain>.<PUBLIC_TENANT_DOMAIN>
+  /// (la tienda queda en la raíz y el ingreso del personal en /admin)
+  appSubdomain     String?  @unique
   /// Módulos que el Super Admin habilitó para este negocio (ver src/common/modules.ts)
   enabledModules   String[] @default([])
   // Marca

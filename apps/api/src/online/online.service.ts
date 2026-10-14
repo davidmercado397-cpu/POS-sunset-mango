@@ -3,7 +3,7 @@ import { Branch, OnlineOrder, Prisma } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
-import { normalizeSubdomain, storeUrl, subdomainFromHost } from '../common/store-address';
+import { appSubdomainFromHost, normalizeSubdomain, storeUrl, subdomainFromHost } from '../common/store-address';
 import { ENV, Env } from '../config/env';
 import { effectiveModules } from '../common/modules';
 import { dayRange, summarizeNames, tenantOf } from '../common/util';
@@ -29,15 +29,29 @@ export class OnlineService {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  /** ¿Este host es la tienda de algún negocio? Devuelve su identificador o null. */
+  /**
+   * ¿Este host pertenece a un negocio? Devuelve:
+   * - `store`: identificador de la tienda que se debe mostrar en "/" (o null),
+   * - `tenant`: marca del restaurante cuando el host es su subdominio propio (el personal ingresa en /admin).
+   */
   async resolveHost(rawHost: string) {
     const host = rawHost.toLowerCase().replace(/:\d+$/, '');
     const sub = subdomainFromHost(host, this.env.publicStoreDomain);
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { isActive: true, OR: [{ storeDomain: host }, ...(sub ? [{ storeSubdomain: sub }] : [])] },
-      select: { slug: true, enabledModules: true },
-    });
-    return { store: tenant && tenant.enabledModules.includes('online') ? tenant.slug : null };
+    const appSub = appSubdomainFromHost(host, this.env);
+    const select = { slug: true, enabledModules: true, brandName: true, name: true, logoUrl: true, primaryColor: true, secondaryColor: true } as const;
+    const own = appSub ? await this.prisma.tenant.findFirst({ where: { isActive: true, appSubdomain: appSub }, select }) : null;
+    const tenant =
+      own ??
+      (await this.prisma.tenant.findFirst({
+        where: { isActive: true, OR: [{ storeDomain: host }, ...(sub ? [{ storeSubdomain: sub }] : [])] },
+        select,
+      }));
+    return {
+      store: tenant && tenant.enabledModules.includes('online') ? tenant.slug : null,
+      tenant: own
+        ? { slug: own.slug, name: own.brandName || own.name, logoUrl: own.logoUrl, primaryColor: own.primaryColor, secondaryColor: own.secondaryColor }
+        : null,
+    };
   }
 
   // ───────── Público (sin usuario) ─────────
@@ -246,13 +260,15 @@ export class OnlineService {
   async settings(branch: BranchContext) {
     const b = await this.prisma.branch.findUniqueOrThrow({
       where: { id: branch.id },
-      include: { tenant: { select: { slug: true, storeSubdomain: true, storeDomain: true } } },
+      include: { tenant: { select: { slug: true, storeSubdomain: true, storeDomain: true, appSubdomain: true } } },
     });
     return {
       slug: b.tenant.slug,
       storeUrl: storeUrl(b.tenant, this.env),
       storeSubdomain: b.tenant.storeSubdomain,
       storeDomain: b.tenant.storeDomain,
+      /** Con subdominio propio del restaurante la tienda vive ahí y no se edita el de tiendas */
+      appSubdomain: b.tenant.appSubdomain,
       publicStoreDomain: this.env.publicStoreDomain ?? null,
       branchId: b.id,
       onlineAccepting: b.onlineAccepting,

@@ -4,7 +4,7 @@ import { hashPassword } from '../auth/password';
 import { AuthUser } from '../common/auth-user';
 import { CORE_MODULES, isValidModule, MODULE_CATALOG } from '../common/modules';
 import { SYSTEM_ROLES } from '../common/permissions';
-import { normalizeDomain, normalizeSubdomain, storeUrl } from '../common/store-address';
+import { normalizeDomain, normalizeSubdomain, staffUrl, storeUrl } from '../common/store-address';
 import { slugify } from '../common/util';
 import { ENV, Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -55,7 +55,9 @@ export class PlatformService {
     return {
       ...tenant,
       storeUrl: storeUrl(tenant, this.env),
+      staffUrl: staffUrl(tenant, this.env),
       publicStoreDomain: this.env.publicStoreDomain ?? null,
+      publicTenantDomain: this.env.publicTenantDomain ?? null,
       users: tenant.users.map((u) => ({
         id: u.id,
         fullName: u.fullName,
@@ -133,10 +135,12 @@ export class PlatformService {
       );
     }
 
+    const appSubdomain = dto.appSubdomain !== undefined ? await this.checkAppSubdomain(id, dto.appSubdomain) : undefined;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.tenant.update({
         where: { id },
-        data: { name: dto.name?.trim(), isActive: dto.isActive, enabledModules: modules, storeSubdomain, storeDomain },
+        data: { name: dto.name?.trim(), isActive: dto.isActive, enabledModules: modules, storeSubdomain, storeDomain, appSubdomain },
       });
       // Si se retira un módulo del negocio, se apaga también en todas sus sedes.
       if (modules) {
@@ -169,6 +173,23 @@ export class PlatformService {
       this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
     ]);
     await this.audit.log({ userId: actor.id, tenantId, action: 'platform.user_password_reset', entity: 'User', entityId: userId });
+  }
+
+  /** Valida el subdominio propio del restaurante; vacío lo quita. */
+  private async checkAppSubdomain(id: string, value: string): Promise<string | null> {
+    if (!value.trim()) return null;
+    const domain = this.env.publicTenantDomain;
+    if (!domain) throw new BadRequestException('Configura la variable PUBLIC_TENANT_DOMAIN (ej. sunsetmango.com.co) para usar subdominios por restaurante');
+    const sub = normalizeSubdomain(value);
+    // No puede chocar con la app principal ni con el dominio de tiendas si están en el mismo dominio.
+    const taken = [this.env.publicAppUrl?.replace(/^https?:\/\//, '').replace(/[:/].*$/, ''), this.env.publicStoreDomain]
+      .filter((h): h is string => !!h)
+      .map((h) => h.toLowerCase());
+    if (taken.includes(`${sub}.${domain}`)) throw new BadRequestException(`${sub}.${domain} ya lo usa la plataforma`);
+    if (await this.prisma.tenant.findFirst({ where: { appSubdomain: sub, id: { not: id } } })) {
+      throw new ConflictException('Ese subdominio ya lo usa otro restaurante');
+    }
+    return sub;
   }
 
   /** El subdominio inicial es el identificador del negocio (o una variante si está reservado/ocupado). */

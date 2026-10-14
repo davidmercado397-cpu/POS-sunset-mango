@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/auth-user';
 import { effectiveModules } from '../common/modules';
+import { appSubdomainFromHost } from '../common/store-address';
 import { isValidPermission } from '../common/permissions';
 import { ENV, Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -35,14 +36,18 @@ export class AuthService {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  async login(username: string, password: string, client: ClientInfo): Promise<IssuedTokens> {
+  async login(username: string, password: string, client: ClientInfo, host = ''): Promise<IssuedTokens> {
     const invalid = new UnauthorizedException('Usuario o contraseña incorrectos');
     const user = await this.prisma.user.findUnique({
       where: { username: username.trim().toLowerCase() },
       include: { tenant: true },
     });
 
-    if (!user) {
+    // En el subdominio propio de un restaurante solo ingresan sus usuarios (ni otros negocios ni el Super Admin).
+    // Un host que no es de ningún restaurante (ej. la app principal) no restringe.
+    const appSub = appSubdomainFromHost(host, this.env);
+    const hostTenant = appSub ? await this.prisma.tenant.findUnique({ where: { appSubdomain: appSub }, select: { id: true } }) : null;
+    if (!user || (hostTenant && user.tenantId !== hostTenant.id)) {
       await verifyPassword(await this.dummyHash, password);
       throw invalid;
     }

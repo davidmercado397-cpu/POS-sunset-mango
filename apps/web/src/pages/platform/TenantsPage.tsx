@@ -28,6 +28,9 @@ interface TenantDetail {
   storeSubdomain: string | null;
   storeDomain: string | null;
   publicStoreDomain: string | null;
+  appSubdomain: string | null;
+  staffUrl: string | null;
+  publicTenantDomain: string | null;
   isActive: boolean;
   enabledModules: string[];
   branches: { id: string; name: string; isActive: boolean }[];
@@ -179,6 +182,43 @@ function useUpdateTenant(id: string) {
   });
 }
 
+/** Subdominio propio: la tienda queda en la raíz y el personal ingresa en /admin, con la marca del restaurante. */
+function AppSubdomainCard({ tenant }: { tenant: TenantDetail }) {
+  const [sub, setSub] = useState(tenant.appSubdomain ?? '');
+  const update = useUpdateTenant(tenant.id);
+  const domain = tenant.publicTenantDomain;
+  return (
+    <Card className="space-y-3">
+      <p className="font-semibold">Subdominio del restaurante</p>
+      {domain ? (
+        <>
+          <Field label="Subdominio">
+            <div className="flex items-center gap-2">
+              <Input value={sub} placeholder={tenant.slug} onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              <span className="shrink-0 text-sm text-slate-500">.{domain}</span>
+            </div>
+            <span className="mt-1 block text-xs text-slate-500">Déjalo vacío si este restaurante no usa subdominio propio.</span>
+          </Field>
+          {tenant.staffUrl && (
+            <div className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm">
+              <p>Ingreso del personal: <a href={tenant.staffUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-dark underline">{tenant.staffUrl}</a></p>
+              {tenant.enabledModules.includes('online') && (
+                <p>Tienda de pedidos: <a href={`https://${tenant.appSubdomain}.${domain}`} target="_blank" rel="noreferrer" className="font-medium text-brand-dark underline">https://{tenant.appSubdomain}.{domain}</a></p>
+              )}
+              <p className="text-xs text-slate-500">En el ingreso del personal solo pueden entrar los usuarios de este restaurante. El subdominio debe existir en el DNS y en el servidor web.</p>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button loading={update.isPending} onClick={() => update.mutate({ appSubdomain: sub })}>Guardar subdominio</Button>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-slate-500">Define PUBLIC_TENANT_DOMAIN en el servidor (ej. sunsetmango.com.co) para dar a cada restaurante su propio subdominio.</p>
+      )}
+    </Card>
+  );
+}
+
 function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
   const [name, setName] = useState(tenant.name);
   // Si la tienda usa el dominio de tiendas sin subdominio, ambos campos se muestran vacíos.
@@ -189,6 +229,7 @@ function TenantGeneral({ tenant }: { tenant: TenantDetail }) {
   const url = tenant.storeUrl.startsWith('http') ? tenant.storeUrl : `${window.location.origin}${tenant.storeUrl}`;
   return (
     <div className="space-y-5">
+      <AppSubdomainCard tenant={tenant} />
       <Card className="space-y-3">
         <p className="font-semibold">Dirección de la tienda en línea</p>
         <p className="text-sm"><a href={url} target="_blank" rel="noreferrer" className="font-medium text-brand-dark underline">{url}</a></p>

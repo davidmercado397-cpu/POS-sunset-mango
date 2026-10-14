@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Alert, Button, Field, Input } from '../components/ui';
+import { getHostTenant } from '../lib/hostTenant';
 
 export function LoginPage() {
   const { status, login } = useAuth();
@@ -13,6 +14,7 @@ export function LoginPage() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const host = getHostTenant();
 
   if (status === 'authenticated') return <Navigate to="/" replace />;
 
@@ -35,8 +37,8 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-orange-100 via-amber-50 to-rose-100 p-4">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl sm:p-8">
         <div className="mb-6 flex flex-col items-center text-center">
-          <img src="/favicon.svg" alt="" className="mb-3 size-16" />
-          <h1 className="text-2xl font-bold">Sunset Mango POS</h1>
+          <img src={host?.logoUrl ?? '/favicon.svg'} alt="" className="mb-3 size-16 rounded-2xl object-contain" />
+          <h1 className="text-2xl font-bold">{host?.name ?? 'Sunset Mango POS'}</h1>
           <p className="text-sm text-slate-500">Ingresa con tu correo o usuario</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">

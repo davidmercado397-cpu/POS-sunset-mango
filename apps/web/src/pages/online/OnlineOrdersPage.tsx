@@ -37,7 +37,7 @@ interface OnlineOrder {
   rejectReason: string | null;
   createdAt: string;
 }
-interface Settings { slug: string; storeUrl: string; storeSubdomain: string | null; storeDomain: string | null; publicStoreDomain: string | null; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null; transferInfo: string | null }
+interface Settings { slug: string; storeUrl: string; storeSubdomain: string | null; storeDomain: string | null; appSubdomain: string | null; publicStoreDomain: string | null; branchId: string; onlineAccepting: boolean; allowDelivery: boolean; allowPickup: boolean; deliveryFee: number; minOrder: number; onlineMessage: string | null; whatsapp: string | null; transferInfo: string | null }
 
 const STATUS: Record<Status, { label: string; tone: 'amber' | 'blue' | 'green' | 'brand' | 'slate' | 'red' }> = {
   NEW: { label: 'Por aceptar', tone: 'amber' }, ACCEPTED: { label: 'En preparación', tone: 'blue' }, READY: { label: 'Listo', tone: 'green' },
@@ -224,7 +224,7 @@ function SettingsTab() {
           <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success('Enlace copiado'))} aria-label="Copiar"><Copy className="size-4" /></Button>
           <a href={url} target="_blank" rel="noreferrer"><Button variant="secondary" aria-label="Abrir"><ExternalLink className="size-4" /></Button></a>
         </div>
-        {data?.publicStoreDomain && (!data.storeDomain || data.storeDomain === data.publicStoreDomain) && can('settings.manage') && (
+        {data?.publicStoreDomain && !data.appSubdomain && (!data.storeDomain || data.storeDomain === data.publicStoreDomain) && can('settings.manage') && (
           <Field label="Subdominio de la tienda">
             <div className="flex items-center gap-2">
               <Input value={sub} placeholder="(vacío)" onChange={(e) => setSub(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
@@ -235,7 +235,7 @@ function SettingsTab() {
           </Field>
         )}
         {data?.storeDomain && data.storeDomain !== data.publicStoreDomain && <p className="text-xs text-slate-500">Tu tienda usa el dominio propio <b>{data.storeDomain}</b>, asignado por el proveedor.</p>}
-        {data && !data.publicStoreDomain && !data.storeDomain && (
+        {data && !data.publicStoreDomain && !data.storeDomain && !data.appSubdomain && (
           <p className="text-xs text-slate-500">Cuando el proveedor configure el dominio de tiendas, aquí podrás elegir un subdominio propio.</p>
         )}
         {qr && (

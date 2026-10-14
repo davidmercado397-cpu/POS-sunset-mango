@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, refreshAccessToken, setAccessToken, setBranchHeader, setSessionExpiredHandler } from '../lib/api';
+import { getHostTenant } from '../lib/hostTenant';
 import { applyBrand } from '../lib/theme';
 import type { AppModule, SessionData } from './types';
 
@@ -46,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applySession = useCallback((data: SessionData | null) => {
     setSession(data);
     setStatus(data ? 'authenticated' : 'anonymous');
-    applyBrand(data?.tenant?.primaryColor, data?.tenant?.secondaryColor);
+    // Sin sesión, en el subdominio de un restaurante se mantienen sus colores.
+    const host = getHostTenant();
+    applyBrand(data?.tenant?.primaryColor ?? host?.primaryColor, data?.tenant?.secondaryColor ?? host?.secondaryColor);
     if (data) {
       const stored = readStoredBranch();
       const valid = data.branches.find((b) => b.id === stored) ?? data.branches[0];
