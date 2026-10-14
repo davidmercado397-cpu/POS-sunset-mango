@@ -56,3 +56,11 @@ export class ResetPasswordDto {
   @IsString() @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' }) @MaxLength(200)
   password: string;
 }
+
+export class UpdateTenantUserDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(100)
+  fullName?: string;
+
+  @IsOptional() @IsString() @MaxLength(120) @Matches(LOGIN_ID_REGEX, { message: LOGIN_ID_MESSAGE })
+  username?: string;
+}

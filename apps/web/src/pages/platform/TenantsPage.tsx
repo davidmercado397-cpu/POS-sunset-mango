@@ -1,4 +1,4 @@
-import { Building2, KeyRound, Plus } from 'lucide-react';
+import { Building2, KeyRound, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { ModuleChecklist, type ModuleInfo } from '../../components/ModuleChecklist';
@@ -308,6 +308,7 @@ function TenantSecurity({ tenant, modules }: { tenant: TenantDetail; modules: Mo
 
 function TenantUsers({ tenant }: { tenant: TenantDetail }) {
   const [target, setTarget] = useState<TenantDetail['users'][number] | null>(null);
+  const [editing, setEditing] = useState<TenantDetail['users'][number] | null>(null);
   const [password, setPassword] = useState('');
   const reset = useApiMutation(
     (vars: { userId: string; password: string }) =>
@@ -324,11 +325,17 @@ function TenantUsers({ tenant }: { tenant: TenantDetail }) {
               {u.username} · {u.role ?? 'Sin rol'} · {u.lastLoginAt ? `Último ingreso ${formatDateTime(u.lastLoginAt)}` : 'Nunca ha ingresado'}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => { setTarget(u); setPassword(''); }}>
-            <KeyRound className="size-4" /> <span className="hidden sm:inline">Restablecer</span>
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" onClick={() => setEditing(u)} aria-label="Editar">
+              <Pencil className="size-4" /> <span className="hidden sm:inline">Editar</span>
+            </Button>
+            <Button variant="secondary" onClick={() => { setTarget(u); setPassword(''); }}>
+              <KeyRound className="size-4" /> <span className="hidden sm:inline">Restablecer</span>
+            </Button>
+          </div>
         </div>
       ))}
+      {editing && <EditUserModal tenantId={tenant.id} user={editing} onClose={() => setEditing(null)} />}
       {target && (
         <Modal
           open
@@ -347,5 +354,28 @@ function TenantUsers({ tenant }: { tenant: TenantDetail }) {
         </Modal>
       )}
     </div>
+  );
+}
+
+function EditUserModal({ tenantId, user, onClose }: { tenantId: string; user: TenantDetail['users'][number]; onClose: () => void }) {
+  const [fullName, setFullName] = useState(user.fullName);
+  const [username, setUsername] = useState(user.username);
+  const save = useApiMutation(
+    () => api(`/platform/tenants/${tenantId}/users/${user.id}`, { method: 'PATCH', json: { fullName, username } }),
+    { invalidate: [['platform']], success: 'Usuario actualizado' },
+  );
+  return (
+    <Modal open size="sm" onClose={onClose} title="Editar usuario"
+      footer={<Button loading={save.isPending} disabled={fullName.trim().length < 2 || !username.trim()} onClick={() => save.mutate(undefined, { onSuccess: onClose })}>Guardar</Button>}>
+      <div className="space-y-4">
+        <Field label="Nombre"><Input value={fullName} onChange={(e) => setFullName(e.target.value)} autoFocus /></Field>
+        <Field label="Correo o usuario de ingreso">
+          <Input value={username} autoCapitalize="none" autoCorrect="off" inputMode="email" onChange={(e) => setUsername(e.target.value)} />
+        </Field>
+        {username.trim().toLowerCase() !== user.username && (
+          <p className="text-xs text-amber-700">El usuario deberá ingresar con el nuevo correo o usuario; su contraseña no cambia.</p>
+        )}
+      </div>
+    </Modal>
   );
 }

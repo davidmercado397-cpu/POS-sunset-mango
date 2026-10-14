@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } fr
 import { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SuperAdminOnly } from '../common/decorators/permissions.decorator';
-import { CreateTenantDto, ResetPasswordDto, UpdateTenantDto } from './platform.dto';
+import { CreateTenantDto, ResetPasswordDto, UpdateTenantDto, UpdateTenantUserDto } from './platform.dto';
 import { PlatformService } from './platform.service';
 
 @Controller('platform')
@@ -33,6 +33,16 @@ export class PlatformController {
   @Patch('tenants/:id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTenantDto, @CurrentUser() user: AuthUser) {
     return this.platform.update(id, dto, user);
+  }
+
+  @Patch('tenants/:id/users/:userId')
+  updateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: UpdateTenantUserDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.platform.updateUser(id, userId, dto, user);
   }
 
   @Post('tenants/:id/users/:userId/reset-password')

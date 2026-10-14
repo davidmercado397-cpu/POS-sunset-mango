@@ -22,6 +22,20 @@ describe('Super Admin y administración del negocio', () => {
     expect(cats.body.length).toBeGreaterThan(3);
   });
 
+  it('el Super Admin edita el nombre y el correo de ingreso de un usuario', async () => {
+    const { master, tenantId, admin } = await setupTenant(app, []);
+    const other = await setupTenant(app, [], 'otro');
+    const userId = (await master.get(`/platform/tenants/${tenantId}`).expect(200)).body.users[0].id;
+    await master.patch(`/platform/tenants/${tenantId}/users/${userId}`, { username: 'admin-otro' }).expect(409);
+    await master.patch(`/platform/tenants/${tenantId}/users/${userId}`, { username: 'no valido!' }).expect(400);
+    await master.patch(`/platform/tenants/${other.tenantId}/users/${userId}`, { fullName: 'X Y' }).expect(404);
+    const res = await master.patch(`/platform/tenants/${tenantId}/users/${userId}`, { fullName: '  Laura Pérez ', username: 'Laura@Negocio.com' }).expect(200);
+    expect(res.body).toMatchObject({ fullName: 'Laura Pérez', username: 'laura@negocio.com' });
+    await loginAs(app, 'laura@negocio.com');
+    await admin.patch(`/platform/tenants/${tenantId}/users/${userId}`, { fullName: 'Hack' }).expect(403);
+    expect(await prisma.auditLog.count({ where: { action: 'platform.user_updated' } })).toBe(1);
+  });
+
   it('rechaza módulos con dependencias faltantes', async () => {
     const master = client(app, await loginAs(app, 'master'));
     await master

@@ -5,10 +5,11 @@ import { AuthUser } from '../common/auth-user';
 import { CORE_MODULES, isValidModule, MODULE_CATALOG } from '../common/modules';
 import { SYSTEM_ROLES } from '../common/permissions';
 import { normalizeDomain, normalizeSubdomain, staffUrl, storeUrl } from '../common/store-address';
+import { normalizeLoginId } from '../common/login-id';
 import { slugify } from '../common/util';
 import { ENV, Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTenantDto, UpdateTenantDto } from './platform.dto';
+import { CreateTenantDto, UpdateTenantDto, UpdateTenantUserDto } from './platform.dto';
 
 const DEFAULT_EXPENSE_CATEGORIES = ['Proveedores', 'Servicios públicos', 'Nómina', 'Arriendo', 'Transporte', 'Aseo', 'Otros'];
 
@@ -160,6 +161,25 @@ export class PlatformService {
 
     await this.audit.log({ userId: actor.id, tenantId: id, action: 'platform.tenant_updated', entity: 'Tenant', entityId: id, data: { ...dto } });
     return this.get(id);
+  }
+
+  /** El Super Admin corrige el nombre o el correo/usuario de ingreso de un usuario del negocio. */
+  async updateUser(tenantId: string, userId: string, dto: UpdateTenantUserDto, actor: AuthUser) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, tenantId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    const username = dto.username !== undefined ? normalizeLoginId(dto.username) : undefined;
+    if (username && username !== user.username && (await this.prisma.user.findUnique({ where: { username } }))) {
+      throw new ConflictException(`El usuario "${username}" ya existe`);
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { fullName: dto.fullName?.trim(), username },
+    });
+    await this.audit.log({
+      userId: actor.id, tenantId, action: 'platform.user_updated', entity: 'User', entityId: userId,
+      data: { from: { fullName: user.fullName, username: user.username }, to: { fullName: updated.fullName, username: updated.username } },
+    });
+    return { id: updated.id, fullName: updated.fullName, username: updated.username };
   }
 
   async resetUserPassword(tenantId: string, userId: string, password: string, actor: AuthUser) {
