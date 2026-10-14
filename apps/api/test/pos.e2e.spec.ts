@@ -25,7 +25,7 @@ describe('Caja, POS, inventario y mesas', () => {
   beforeEach(async () => {
     await resetDb(prisma);
     await createSuperAdmin(prisma);
-    ({ admin, branchId, tenantId } = await setupTenant(app, ['tips', 'inventory', 'kitchen', 'tables', 'reports']));
+    ({ admin, branchId, tenantId } = await setupTenant(app, ['tips', 'inventory', 'kitchen', 'tables', 'reports', 'credit']));
     pan = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Pan', unit: 'und' } })).id;
     carne = (await prisma.inventoryItem.create({ data: { tenantId, name: 'Carne', unit: 'g' } })).id;
     const cat = await admin.post('/catalog/categories', { name: 'Hamburguesas' }).expect(201);
@@ -322,5 +322,60 @@ describe('Caja, POS, inventario y mesas', () => {
     expect(tickets.filter((t) => t.status === 'PENDING').map((t) => t.id)).toEqual([tickets[2].id]);
     expect((await admin.post('/kitchen/tickets/close', { scope: 'all' }).expect(200)).body).toEqual({ closed: 1 });
     expect(await prisma.kitchenTicket.count({ where: { status: { in: ['PENDING', 'PREPARING', 'READY'] } } })).toBe(0);
+  });
+
+  it('ventas a crédito: quedan por cobrar, se abonan en caja y se saldan', async () => {
+    await admin.post('/cash/open', { openingAmount: 0 }).expect(201);
+    const items = [{ productId: burger.id, quantity: 2, optionIds: [option('Grande')] }]; // 36.000
+    // Sin nombre, con propina o con abono que cubre todo: no.
+    await admin.post('/sales', { items, credit: { debtorName: '' } }).expect(400);
+    await admin.post('/sales', { items, tipAmount: 1000, credit: { debtorName: 'Don José' }, payments: [] }).expect(400);
+    await admin.post('/sales', { items, credit: { debtorName: 'Don José' }, payments: [{ method: 'CASH', amount: 36000 }] }).expect(400);
+    await admin.post('/sales', { items }).expect(400); // venta normal sin pagos
+
+    // Venta a crédito con abono inicial de 6.000 en efectivo.
+    const sale = await admin.post('/sales', {
+      items, credit: { debtorName: ' Don José ', notes: 'Paga el viernes' }, payments: [{ method: 'CASH', amount: 6000 }],
+    }).expect(201);
+    expect(sale.body.receivable).toMatchObject({ debtorName: 'Don José', notes: 'Paga el viernes', amount: 30000, paidAmount: 0, status: 'PENDING' });
+    expect(await stock(pan)).toBe(-2); // el inventario se descuenta como cualquier venta
+
+    let summary = (await admin.get('/cash/current').expect(200)).body.summary;
+    expect(summary).toMatchObject({ salesTotal: 36000, creditSales: 30000 });
+    expect(summary.expected.CASH).toBe(6000);
+
+    const list = (await admin.get('/credit/receivables').expect(200)).body;
+    expect(list.pending).toEqual({ count: 1, balance: 30000 });
+    const id = list.receivables[0].id;
+
+    // Abonos: no más que el saldo, ni fecha futura.
+    await admin.post(`/credit/receivables/${id}/payments`, { method: 'TRANSFER', amount: 40000 }).expect(400);
+    await admin.post(`/credit/receivables/${id}/payments`, { method: 'TRANSFER', amount: 1000, paidAt: '2999-01-01' }).expect(400);
+    await admin.post(`/credit/receivables/${id}/payments`, { method: 'TRANSFER', amount: 10000, reference: 'Nequi 123' }).expect(201);
+    const paid = await admin.post(`/credit/receivables/${id}/payments`, { method: 'CASH', amount: 20000 }).expect(201);
+    expect(paid.body).toMatchObject({ status: 'PAID', paidAmount: 30000, balance: 0 });
+    expect(paid.body.payments).toHaveLength(2);
+    await admin.post(`/credit/receivables/${id}/payments`, { method: 'CASH', amount: 1 }).expect(400);
+
+    summary = (await admin.get('/cash/current').expect(200)).body.summary;
+    expect(summary.creditCollected).toEqual({ CASH: 20000, TRANSFER: 10000, QR_BOLD: 0 });
+    expect(summary.expected).toEqual({ CASH: 26000, TRANSFER: 10000, QR_BOLD: 0 });
+    expect((await admin.get('/credit/receivables?status=PAID').expect(200)).body.receivables).toHaveLength(1);
+
+    // Un crédito con pagos no se anula; uno sin pagos se anula y desaparece de pendientes.
+    await admin.post(`/sales/${sale.body.id}/void`, { reason: 'error' }).expect(400);
+    const other = await admin.post('/sales', { items, credit: { debtorName: 'María' } }).expect(201);
+    await admin.post(`/sales/${other.body.id}/void`, { reason: 'error' }).expect(201);
+    expect((await admin.get('/credit/receivables').expect(200)).body.pending).toEqual({ count: 0, balance: 0 });
+
+    // Cuenta de mesa cobrada a crédito.
+    const order = await admin.post('/orders', { customerName: 'Mesa 3', items: [{ productId: burger.id, quantity: 1, optionIds: [option('Normal')] }] }).expect(201);
+    const closed = await admin.post(`/orders/${order.body.id}/pay`, { credit: { debtorName: 'Pedro' } }).expect(201);
+    expect(closed.body.receivable).toMatchObject({ debtorName: 'Pedro', amount: 15000 });
+
+    // Sin el módulo activo en la sede no se puede vender a crédito.
+    await admin.put(`/admin/branches/${branchId}`, { name: 'Sede', activeModules: ['tips'] }).expect(200);
+    await admin.post('/sales', { items, credit: { debtorName: 'Ana' } }).expect(400);
+    await admin.get('/credit/receivables').expect(403);
   });
 });

@@ -52,6 +52,15 @@ export function SaleDetailView({ sale }: { sale: SaleDetail }) {
         )}
         <div className="flex justify-between text-base font-bold"><span>Total</span><span className="tabular-nums">{formatCOP(sale.subtotal + sale.tipAmount)}</span></div>
       </div>
+      {sale.receivable && sale.receivable.status !== 'CANCELLED' && (
+        <div className={`rounded-xl p-3 ${sale.receivable.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>
+          <p className="font-semibold">
+            Venta a crédito · {sale.receivable.debtorName}
+            {sale.receivable.status === 'PAID' ? ' · Pagada' : ` · Debe ${formatCOP(sale.receivable.amount - sale.receivable.paidAmount)}`}
+          </p>
+          {sale.receivable.notes && <p className="text-xs">{sale.receivable.notes}</p>}
+        </div>
+      )}
       {sale.payments.length > 0 && (
         <div>
           <p className="mb-1 font-semibold">Pagos</p>

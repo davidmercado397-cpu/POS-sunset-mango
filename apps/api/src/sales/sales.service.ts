@@ -32,6 +32,7 @@ const SALE_DETAIL = {
   table: { select: { id: true, name: true } },
   createdBy: { select: { fullName: true } },
   voidedBy: { select: { fullName: true } },
+  receivable: { select: { id: true, debtorName: true, notes: true, amount: true, paidAmount: true, status: true } },
 } satisfies Prisma.SaleInclude;
 
 @Injectable()
@@ -125,6 +126,7 @@ export class SalesService {
         },
       });
       await this.createItems(tx, sale.id, lines, true);
+      await this.createReceivable(tx, user, branch, sale.id, pay.credit);
       await this.consumeInventory(tx, user, branch, sale.id, lines);
       await this.sendToKitchen(tx, tenantId, branch, sale.id, `Venta #${number}${sale.customerName ? ` · ${sale.customerName}` : ''}`, lines);
       return sale.id;
@@ -238,6 +240,7 @@ export class SalesService {
           payments: { create: pay.payments },
         },
       });
+      await this.createReceivable(tx, user, branch, sale.id, pay.credit);
       // El inventario de las cuentas abiertas se descuenta al cobrar, con las recetas vigentes.
       const lines = await this.consumptionFromItems(tx, items);
       await this.consumeInventory(tx, user, branch, sale.id, lines);
@@ -268,7 +271,13 @@ export class SalesService {
       where,
       orderBy: { createdAt: 'desc' },
       take: 500,
-      include: { payments: true, table: { select: { name: true } }, createdBy: { select: { fullName: true } }, _count: { select: { items: true } } },
+      include: {
+        payments: true,
+        table: { select: { name: true } },
+        createdBy: { select: { fullName: true } },
+        receivable: { select: { debtorName: true, amount: true, paidAmount: true, status: true } },
+        _count: { select: { items: true } },
+      },
     });
     return sales;
   }
@@ -290,6 +299,12 @@ export class SalesService {
         throw new BadRequestException('La caja de esta venta ya fue cerrada; no se puede anular');
       }
       await this.cash.lockOpen(tx, sale.cashSession.id);
+      // Un crédito con abonos ya recibidos no se anula desde aquí (ese dinero entró a otra caja).
+      const receivable = await tx.receivable.findUnique({ where: { saleId: id } });
+      if (receivable && receivable.paidAmount > 0) {
+        throw new BadRequestException('Esta venta a crédito ya tiene pagos registrados; no se puede anular');
+      }
+      if (receivable) await tx.receivable.update({ where: { id: receivable.id }, data: { status: 'CANCELLED' } });
       const { count } = await tx.sale.updateMany({
         where: { id, status: 'COMPLETED' },
         data: { status: 'VOIDED', voidedAt: new Date(), voidedById: user.id, voidReason: reason.trim() },
@@ -333,6 +348,7 @@ export class SalesService {
 
       const snapshot = order.items as unknown as Omit<PricedLine, 'consumption' | 'sendToKitchen'>[];
       if (dto.discount) throw new BadRequestException('Los pedidos en línea no admiten descuento');
+      if (dto.credit) throw new BadRequestException('Los pedidos en línea no se pueden dejar a crédito');
       const pay = this.validatePayments(user, branch, order.total, dto);
       const number = await this.nextNumber(tx, branch.id);
       const sale = await tx.sale.create({
@@ -474,17 +490,28 @@ export class SalesService {
     }
     const subtotal = gross - discount;
     const total = subtotal + tipAmount;
-    const paid = dto.payments.reduce((s, p) => s + p.amount, 0);
-    if (paid !== total) {
-      throw new BadRequestException(`Los pagos (${paid.toLocaleString('es-CO')}) no coinciden con el total (${total.toLocaleString('es-CO')})`);
+    const dtoPayments = dto.payments ?? [];
+    const paid = dtoPayments.reduce((s, p) => s + p.amount, 0);
+    let credit: { debtorName: string; notes: string | null; amount: number } | null = null;
+    if (dto.credit) {
+      if (!branch.modules.includes('credit')) throw new BadRequestException('Las ventas a crédito no están activas en esta sede');
+      if (!user.permissions.includes('credit.sell')) throw new ForbiddenException('No tienes permiso para vender a crédito');
+      if (tipAmount > 0) throw new BadRequestException('Una venta a crédito no lleva propina');
+      if (paid >= total) throw new BadRequestException('El abono cubre todo el valor; regístrala como venta normal');
+      credit = { debtorName: dto.credit.debtorName.trim(), notes: dto.credit.notes?.trim() || null, amount: total - paid };
+    } else {
+      if (!dtoPayments.length) throw new BadRequestException('Agrega al menos un pago');
+      if (paid !== total) {
+        throw new BadRequestException(`Los pagos (${paid.toLocaleString('es-CO')}) no coinciden con el total (${total.toLocaleString('es-CO')})`);
+      }
     }
-    const methods = dto.payments.map((p) => p.method);
+    const methods = dtoPayments.map((p) => p.method);
     let tipMethod: PaymentMethod | null = null;
     if (tipAmount > 0) {
       tipMethod = dto.tipMethod ?? methods[0];
       if (!methods.includes(tipMethod)) throw new BadRequestException('La propina debe pagarse con uno de los métodos usados');
     }
-    const payments = dto.payments.map((p) => {
+    const payments = dtoPayments.map((p) => {
       if (p.method === 'CASH') {
         const received = p.received ?? p.amount;
         if (received < p.amount) throw new BadRequestException('El efectivo recibido es menor al valor a pagar');
@@ -493,10 +520,23 @@ export class SalesService {
       return { method: p.method, amount: p.amount, received: null, change: null, reference: p.reference?.trim() || null };
     });
     const discountNote = discount > 0 ? dto.discountNote?.trim() || null : null;
-    return { subtotal, discount, discountNote, tipAmount, tipMethod, payments };
+    return { subtotal, discount, discountNote, tipAmount, tipMethod, payments, credit };
+  }
+
+  private async createReceivable(tx: Tx, user: AuthUser, branch: BranchContext, saleId: string, credit: { debtorName: string; notes: string | null; amount: number } | null) {
+    if (!credit) return;
+    await tx.receivable.create({
+      data: { tenantId: tenantOf(user), branchId: branch.id, saleId, debtorName: credit.debtorName, notes: credit.notes, amount: credit.amount, createdById: user.id },
+    });
   }
 
   private async logDiscount(user: AuthUser, branch: BranchContext, saleId: string, dto: PayDto) {
+    if (dto.credit) {
+      await this.audit.log({
+        tenantId: tenantOf(user), branchId: branch.id, userId: user.id, action: 'sale.credit', entity: 'Sale', entityId: saleId,
+        data: { debtorName: dto.credit.debtorName.trim() },
+      });
+    }
     if (!dto.discount) return;
     await this.audit.log({
       tenantId: tenantOf(user), branchId: branch.id, userId: user.id, action: 'sale.discount', entity: 'Sale', entityId: saleId,

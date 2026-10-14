@@ -3,7 +3,7 @@ import { Banknote, Landmark, QrCode, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Modal } from '../Modal';
 import { MoneyInput } from '../MoneyInput';
-import { Alert, Button, Field, Input } from '../ui';
+import { Alert, Button, Checkbox, Field, Input } from '../ui';
 import { formatCOP, PAYMENT_LABELS } from '../../lib/format';
 import type { PaymentMethod } from './types';
 
@@ -13,6 +13,8 @@ export interface PaymentPayload {
   tipMethod?: PaymentMethod;
   discount?: number;
   discountNote?: string;
+  /** Venta a crédito (fiado): lo que no se paga queda por cobrar */
+  credit?: { debtorName: string; notes?: string };
 }
 
 interface Row { method: PaymentMethod; amount: number; received: number; reference: string }
@@ -24,23 +26,34 @@ const METHODS: { method: PaymentMethod; icon: typeof Banknote }[] = [
 ];
 
 /** Cobro con uno o varios métodos de pago, propina opcional y cálculo del cambio. */
-export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = false, loading, onClose, onConfirm, defaultMethod = 'CASH', defaultReceived = 0 }: {
-  subtotal: number; tipsEnabled: boolean; allowDiscount?: boolean; loading: boolean; onClose: () => void; onConfirm: (p: PaymentPayload) => void;
+export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = false, allowCredit = false, loading, onClose, onConfirm, defaultMethod = 'CASH', defaultReceived = 0 }: {
+  subtotal: number; tipsEnabled: boolean; allowDiscount?: boolean; allowCredit?: boolean; loading: boolean; onClose: () => void; onConfirm: (p: PaymentPayload) => void;
   defaultMethod?: PaymentMethod; defaultReceived?: number;
 }) {
   const [tip, setTip] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [discountNote, setDiscountNote] = useState('');
   const [tipMethod, setTipMethod] = useState<PaymentMethod | ''>('');
+  const [credit, setCredit] = useState(false);
+  const [debtorName, setDebtorName] = useState('');
+  const [creditNotes, setCreditNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([{ method: defaultMethod, amount: gross, received: defaultMethod === 'CASH' ? defaultReceived : 0, reference: '' }]);
   const subtotal = gross - discount;
   const total = subtotal + tip;
   const paid = rows.reduce((s, r) => s + r.amount, 0);
   const remaining = total - paid;
+  const creditAmount = credit ? Math.max(0, total - paid) : 0;
+
+  // A crédito no hay propina y el pago pasa a ser un abono opcional.
+  const toggleCredit = (on: boolean) => {
+    setCredit(on);
+    setTip(0);
+    setRows(on ? [] : [{ method: defaultMethod, amount: subtotal, received: 0, reference: '' }]);
+  };
 
   const update = (i: number, patch: Partial<Row>) => setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const setSingle = (method: PaymentMethod) => setRows([{ method, amount: total, received: 0, reference: '' }]);
-  const addRow = (method: PaymentMethod) => setRows([...rows, { method, amount: Math.max(0, remaining), received: 0, reference: '' }]);
+  const addRow = (method: PaymentMethod) => setRows([...rows, { method, amount: credit ? 0 : Math.max(0, remaining), received: 0, reference: '' }]);
 
   // Si cambia la propina con un solo método, el valor se ajusta solo.
   const changeTip = (value: number) => {
@@ -50,7 +63,7 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
   // Igual con el descuento: el pago único pasa a ser el nuevo total.
   const changeDiscount = (value: number) => {
     setDiscount(value);
-    if (rows.length === 1) setRows([{ ...rows[0], amount: gross - value + tip }]);
+    if (rows.length === 1 && !credit) setRows([{ ...rows[0], amount: gross - value + tip }]);
   };
 
   const cashRow = rows.find((r) => r.method === 'CASH');
@@ -67,7 +80,10 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
 
   const errors: string[] = [];
   if (discount >= gross && discount > 0) errors.push('El descuento debe ser menor que el valor de los productos');
-  if (remaining !== 0) errors.push(remaining > 0 ? `Faltan ${formatCOP(remaining)}` : `Sobran ${formatCOP(-remaining)}`);
+  if (credit) {
+    if (debtorName.trim().length < 2) errors.push('Escribe el nombre de quien debe');
+    if (paid >= total) errors.push('El abono cubre todo el valor; quita la opción de crédito');
+  } else if (remaining !== 0) errors.push(remaining > 0 ? `Faltan ${formatCOP(remaining)}` : `Sobran ${formatCOP(-remaining)}`);
   if (cashRow && cashRow.received > 0 && cashRow.received < cashRow.amount) errors.push('El efectivo recibido es menor al valor en efectivo');
   if (rows.some((r) => r.amount <= 0)) errors.push('Hay pagos en cero');
 
@@ -82,12 +98,17 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
       tipAmount: tip,
       tipMethod: effectiveTipMethod,
       ...(discount > 0 ? { discount, discountNote: discountNote.trim() || undefined } : {}),
+      ...(credit ? { credit: { debtorName: debtorName.trim(), notes: creditNotes.trim() || undefined } } : {}),
     });
   }
 
   return (
     <Modal open onClose={onClose} title="Cobrar" size="md"
-      footer={<Button className="w-full" disabled={errors.length > 0} loading={loading} onClick={confirm}>Confirmar pago {formatCOP(total)}</Button>}>
+      footer={
+        <Button className="w-full" disabled={errors.length > 0} loading={loading} onClick={confirm}>
+          {credit ? `Registrar a crédito ${formatCOP(creditAmount)}` : `Confirmar pago ${formatCOP(total)}`}
+        </Button>
+      }>
       <div className="space-y-5">
         <div className="rounded-2xl bg-slate-900 p-4 text-white">
           {discount > 0 && (
@@ -99,7 +120,25 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
           <div className="flex justify-between text-sm text-slate-300"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
           {tip > 0 && <div className="flex justify-between text-sm text-slate-300"><span>Propina</span><span>{formatCOP(tip)}</span></div>}
           <div className="mt-1 flex items-baseline justify-between"><span className="text-lg">Total</span><span className="text-3xl font-bold tabular-nums">{formatCOP(total)}</span></div>
+          {credit && (
+            <>
+              {paid > 0 && <div className="mt-1 flex justify-between text-sm text-slate-300"><span>Abono inicial</span><span>{formatCOP(paid)}</span></div>}
+              <div className="flex justify-between text-sm font-semibold text-amber-300"><span>Queda a crédito</span><span>{formatCOP(creditAmount)}</span></div>
+            </>
+          )}
         </div>
+
+        {allowCredit && (
+          <div className={clsx('space-y-3 rounded-2xl border p-3', credit ? 'border-amber-300 bg-amber-50' : 'border-slate-200')}>
+            <Checkbox label="Venta a crédito (fiado): paga después" checked={credit} onChange={(e) => toggleCredit(e.target.checked)} />
+            {credit && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nombre de quien debe"><Input value={debtorName} maxLength={100} onChange={(e) => setDebtorName(e.target.value)} autoFocus /></Field>
+                <Field label="Observaciones (opcional)"><Input value={creditNotes} maxLength={300} onChange={(e) => setCreditNotes(e.target.value)} /></Field>
+              </div>
+            )}
+          </div>
+        )}
 
         {allowDiscount && (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -108,7 +147,7 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
           </div>
         )}
 
-        {tipsEnabled && (
+        {tipsEnabled && !credit && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Propina recibida (opcional)"><MoneyInput value={tip} onChange={changeTip} placeholder="0" /></Field>
             {tip > 0 && methodsUsed.length > 1 && (
@@ -121,6 +160,9 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
           </div>
         )}
 
+        {credit ? (
+          <p className="text-sm text-slate-500">Si deja un abono ahora, agrégalo abajo. Lo demás queda en <b>Créditos</b> hasta que pague.</p>
+        ) : (
         <div>
           <p className="mb-2 text-sm font-semibold">Pago rápido</p>
           <div className="grid grid-cols-3 gap-2">
@@ -133,6 +175,7 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
             ))}
           </div>
         </div>
+        )}
 
         <div className="space-y-3">
           {rows.map((r, i) => (
@@ -160,7 +203,7 @@ export function CheckoutModal({ subtotal: gross, tipsEnabled, allowDiscount = fa
           ))}
           {remaining > 0 && (
             <div className="flex flex-wrap gap-2">
-              <span className="self-center text-sm text-slate-500">Agregar otro método:</span>
+              <span className="self-center text-sm text-slate-500">{credit ? 'Agregar abono:' : 'Agregar otro método:'}</span>
               {METHODS.map(({ method }) => <Button key={method} variant="secondary" onClick={() => addRow(method)}>+ {PAYMENT_LABELS[method]}</Button>)}
             </div>
           )}

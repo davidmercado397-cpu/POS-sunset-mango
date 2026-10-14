@@ -14,6 +14,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { AppConfigModule } from './config/config.module';
 import { ENV, Env } from './config/env';
+import { CreditModule } from './credit/credit.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { HealthController } from './health/health.controller';
 import { InventoryModule } from './inventory/inventory.module';
@@ -68,6 +69,7 @@ function staticModules(): DynamicModule[] {
     ReportsModule,
     OnlineModule,
     ExpensesModule,
+    CreditModule,
   ],
   controllers: [HealthController],
   providers: [

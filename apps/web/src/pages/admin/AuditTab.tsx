@@ -30,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   'inventory.cost_set': 'Costo de inventario corregido',
   'inventory.item_deleted': 'Ítem de inventario eliminado',
   'catalog.product_deleted': 'Producto eliminado',
+  'sale.credit': 'Venta a crédito',
+  'credit.payment': 'Pago de crédito',
   'platform.user_updated': 'Usuario editado por el proveedor',
   'purchase.created': 'Compra registrada',
   'transfer.sent': 'Traslado enviado',

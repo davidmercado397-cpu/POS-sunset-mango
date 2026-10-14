@@ -7,6 +7,8 @@ export interface CashSummary {
   voidedCount: number;
   salesTotal: number;
   discountsTotal?: number;
+  creditSales?: number;
+  creditCollected?: Record<'CASH' | 'TRANSFER' | 'QR_BOLD', number>;
   tipsTotal: number;
   collected: ByMethod;
   sales: ByMethod;

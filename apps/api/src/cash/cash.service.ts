@@ -20,7 +20,11 @@ export interface CashSummary {
   /** Descuentos otorgados (ya restados de salesTotal) */
   discountsTotal?: number;
   tipsTotal: number;
-  /** Dinero recibido por método (ventas + propinas) */
+  /** Valor vendido a crédito en esta caja (ya incluido en salesTotal, pero no recibido) */
+  creditSales?: number;
+  /** Pagos de créditos recibidos en esta caja, por método (incluidos en collected) */
+  creditCollected?: ByMethod;
+  /** Dinero recibido por método (ventas + propinas + pagos de créditos) */
   collected: ByMethod;
   /** Ventas por método, sin propinas */
   sales: ByMethod;
@@ -52,11 +56,13 @@ export class CashService {
   /** Calcula el cuadre de una sesión de caja a partir de ventas y movimientos. */
   async summary(sessionId: string, db: Prisma.TransactionClient = this.prisma): Promise<CashSummary> {
     const session = await db.cashSession.findUniqueOrThrow({ where: { id: sessionId } });
-    const [payments, sales, voided, movements] = await Promise.all([
+    const [payments, sales, voided, movements, creditSales, creditPayments] = await Promise.all([
       db.payment.groupBy({ by: ['method'], where: { sale: { cashSessionId: sessionId, status: 'COMPLETED' } }, _sum: { amount: true } }),
       db.sale.findMany({ where: { cashSessionId: sessionId, status: 'COMPLETED' }, select: { subtotal: true, discount: true, tipAmount: true, tipMethod: true } }),
       db.sale.count({ where: { cashSessionId: sessionId, status: 'VOIDED' } }),
       db.cashMovement.groupBy({ by: ['type', 'method'], where: { sessionId }, _sum: { amount: true } }),
+      db.receivable.aggregate({ where: { sale: { cashSessionId: sessionId, status: 'COMPLETED' } }, _sum: { amount: true } }),
+      db.receivablePayment.groupBy({ by: ['method'], where: { cashSessionId: sessionId }, _sum: { amount: true } }),
     ]);
 
     const collected = zero();
@@ -65,6 +71,9 @@ export class CashService {
     for (const s of sales) if (s.tipAmount && s.tipMethod) tips[s.tipMethod] += s.tipAmount;
     const salesBy = zero();
     for (const m of METHODS) salesBy[m] = collected[m] - tips[m];
+    const creditCollected = zero();
+    for (const p of creditPayments) creditCollected[p.method] = p._sum.amount ?? 0;
+    for (const m of METHODS) collected[m] += creditCollected[m];
     const mv = (t: string, method: PaymentMethod = 'CASH') =>
       movements.filter((m) => m.type === t && m.method === method).reduce((s, m) => s + (m._sum.amount ?? 0), 0);
     const expenses = mv('EXPENSE');
@@ -79,6 +88,8 @@ export class CashService {
       salesTotal: sales.reduce((s, x) => s + x.subtotal, 0),
       discountsTotal: sales.reduce((s, x) => s + x.discount, 0),
       tipsTotal: sales.reduce((s, x) => s + x.tipAmount, 0),
+      creditSales: creditSales._sum.amount ?? 0,
+      creditCollected,
       collected,
       sales: salesBy,
       tips,

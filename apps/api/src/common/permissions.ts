@@ -43,6 +43,9 @@ export const PERMISSION_CATALOG = [
   { key: 'expenses.manage', label: 'Registrar gastos administrativos', group: 'Gastos administrativos', module: 'expenses' },
   // Pedidos en línea
   { key: 'online.manage', label: 'Gestionar pedidos en línea', group: 'Pedidos en línea', module: 'online' },
+  // Ventas a crédito
+  { key: 'credit.sell', label: 'Vender a crédito (fiado)', group: 'Ventas a crédito', module: 'credit' },
+  { key: 'credit.manage', label: 'Ver cuentas por cobrar y registrar pagos', group: 'Ventas a crédito', module: 'credit' },
   // Reportes
   { key: 'reports.view', label: 'Ver reportes', group: 'Reportes', module: 'reports' },
 ] as const satisfies readonly { key: string; label: string; group: string; module?: AppModule }[];
@@ -69,13 +72,13 @@ export const SYSTEM_ROLES: { name: string; description: string; permissions: Per
       'catalog.view', 'pos.sell', 'pos.discount', 'sales.view', 'sales.void',
       'cash.open', 'cash.close', 'cash.movements', 'cash.view', 'cash.monthly',
       'inventory.view', 'inventory.adjust', 'purchases.manage', 'transfers.manage',
-      'kitchen.view', 'tables.manage', 'reports.view', 'online.manage',
+      'kitchen.view', 'tables.manage', 'reports.view', 'online.manage', 'credit.sell', 'credit.manage',
     ],
   },
   {
     name: 'Cajero',
     description: 'Vende y maneja su caja',
-    permissions: ['catalog.view', 'pos.sell', 'pos.discount', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage'],
+    permissions: ['catalog.view', 'pos.sell', 'pos.discount', 'sales.view', 'cash.open', 'cash.close', 'cash.movements', 'tables.manage', 'online.manage', 'credit.sell', 'credit.manage'],
   },
   {
     name: 'Mesero',

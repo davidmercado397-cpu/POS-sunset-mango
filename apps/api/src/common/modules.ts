@@ -16,6 +16,7 @@ export const APP_MODULES = {
   REPORTS: 'reports',
   ONLINE: 'online',
   EXPENSES: 'expenses',
+  CREDIT: 'credit',
 } as const;
 
 export type AppModule = (typeof APP_MODULES)[keyof typeof APP_MODULES];
@@ -32,6 +33,7 @@ export const MODULE_CATALOG: { key: AppModule; label: string; description: strin
   { key: 'kitchen', label: 'Comandas a cocina', description: 'Pantalla de cocina en tiempo real', core: false },
   { key: 'tables', label: 'Mesas y pedidos abiertos', description: 'Cuentas abiertas por mesa', core: false },
   { key: 'expenses', label: 'Gastos administrativos', description: 'Arriendo, nómina, servicios y otros gastos que no salen de la caja del día', core: false },
+  { key: 'credit', label: 'Ventas a crédito (fiado)', description: 'Vender a crédito y llevar las cuentas por cobrar hasta que el cliente pague', core: false },
   { key: 'reports', label: 'Reportes', description: 'Reportes de ventas, caja e inventario', core: false },
   { key: 'online', label: 'Pedidos en línea', description: 'Enlace público para domicilios y pedidos para recoger', core: false },
 ];

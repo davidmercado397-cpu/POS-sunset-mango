@@ -106,7 +106,7 @@ function CustomerModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
 
 /** Toma de pedido: abrir una cuenta nueva o agregar productos a una existente. */
 function OrderScreen({ menu, target, onBack, onOpened }: { menu: Menu; target: Target; onBack: () => void; onOpened: (id: string) => void }) {
-  const { branchId, can } = useAuth();
+  const { branchId, can, hasModule } = useAuth();
   const cart = useCart();
   const orderId = target.kind === 'order' ? target.id : null;
   const order = useApi<SaleDetail>(['orders', branchId, orderId], orderId ? `/sales/${orderId}` : null);
@@ -196,7 +196,7 @@ function OrderScreen({ menu, target, onBack, onOpened }: { menu: Menu; target: T
       )}
 
       {paying && order.data && (
-        <CheckoutModal subtotal={order.data.subtotal} tipsEnabled={menu.modules.includes('tips')} allowDiscount={can('pos.discount')} loading={pay.isPending}
+        <CheckoutModal subtotal={order.data.subtotal} tipsEnabled={menu.modules.includes('tips')} allowDiscount={can('pos.discount')} allowCredit={hasModule('credit') && can('credit.sell')} loading={pay.isPending}
           onClose={() => setPaying(false)}
           onConfirm={(p) => pay.mutate(p, {
             onSuccess: (sale) => {

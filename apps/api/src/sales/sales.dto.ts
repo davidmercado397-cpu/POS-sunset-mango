@@ -33,9 +33,22 @@ export class PaymentDto {
   reference?: string;
 }
 
+/** Venta a crédito (fiado): lo que no se paga ahora queda como cuenta por cobrar */
+export class CreditDto {
+  @IsString() @MinLength(2, { message: 'Escribe el nombre de quien debe' }) @MaxLength(100)
+  debtorName: string;
+
+  @IsOptional() @IsString() @MaxLength(300)
+  notes?: string;
+}
+
 export class PayDto {
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => PaymentDto)
-  payments: PaymentDto[];
+  /** Puede ir vacío solo en una venta a crédito sin abono */
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => PaymentDto)
+  payments: PaymentDto[] = [];
+
+  @IsOptional() @ValidateNested() @Type(() => CreditDto)
+  credit?: CreditDto;
 
   @IsOptional() @IsInt() @Min(0) @Max(100_000_000)
   tipAmount?: number;

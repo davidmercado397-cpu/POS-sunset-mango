@@ -80,6 +80,7 @@ model Branch {
   stocks       Stock[]
   tables       DiningTable[]
   onlineOrders OnlineOrder[]
+  receivables  Receivable[]
 
   @@index([tenantId])
 }
@@ -128,6 +129,8 @@ model User {
   cashMovements CashMovement[]
   salesCreated  Sale[]         @relation("SaleCreatedBy")
   salesVoided   Sale[]         @relation("SaleVoidedBy")
+  receivables         Receivable[]        @relation("ReceivableCreatedBy")
+  receivablePayments  ReceivablePayment[] @relation("ReceivablePaymentBy")
 
   @@index([tenantId])
 }
@@ -310,6 +313,7 @@ model CashSession {
   closedBy  User?          @relation("CashClosedBy", fields: [closedById], references: [id])
   movements CashMovement[]
   sales     Sale[]
+  receivablePayments ReceivablePayment[]
 
   @@index([tenantId, branchId, openedAt])
 }
@@ -401,6 +405,7 @@ model Sale {
   items          SaleItem[]
   payments       Payment[]
   kitchenTickets KitchenTicket[]
+  receivable     Receivable?
 
   @@unique([branchId, number])
   @@index([tenantId, branchId, createdAt])
@@ -754,4 +759,58 @@ model AdminExpense {
   category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, date])
+}
+
+enum ReceivableStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+/// Venta a crédito (fiado): lo que el cliente quedó debiendo y sus abonos
+model Receivable {
+  id          String           @id @default(uuid())
+  tenantId    String
+  branchId    String
+  saleId      String           @unique
+  /// Nombre de quien debe
+  debtorName  String
+  notes       String?
+  /// Valor que quedó a crédito
+  amount      Int
+  paidAmount  Int              @default(0)
+  status      ReceivableStatus @default(PENDING)
+  createdById String
+  createdAt   DateTime         @default(now())
+  paidAt      DateTime?
+  updatedAt   DateTime         @updatedAt
+
+  branch    Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  sale      Sale                @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  createdBy User                @relation("ReceivableCreatedBy", fields: [createdById], references: [id])
+  payments  ReceivablePayment[]
+
+  @@index([tenantId, branchId, status])
+}
+
+/// Pago o abono de una venta a crédito; entra a la caja abierta al momento de registrarlo
+model ReceivablePayment {
+  id            String        @id @default(uuid())
+  receivableId  String
+  cashSessionId String
+  method        PaymentMethod
+  amount        Int
+  reference     String?
+  notes         String?
+  /// Fecha del pago indicada por quien lo registra
+  paidAt        DateTime
+  createdById   String
+  createdAt     DateTime      @default(now())
+
+  receivable  Receivable  @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  cashSession CashSession @relation(fields: [cashSessionId], references: [id])
+  createdBy   User        @relation("ReceivablePaymentBy", fields: [createdById], references: [id])
+
+  @@index([receivableId])
+  @@index([cashSessionId])
 }

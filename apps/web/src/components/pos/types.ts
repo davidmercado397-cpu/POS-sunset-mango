@@ -42,6 +42,7 @@ export interface SaleDetail {
   subtotal: number;
   discount: number;
   discountNote: string | null;
+  receivable?: { id: string; debtorName: string; notes: string | null; amount: number; paidAmount: number; status: 'PENDING' | 'PAID' | 'CANCELLED' } | null;
   tipAmount: number;
   tipMethod: PaymentMethod | null;
   createdAt: string;

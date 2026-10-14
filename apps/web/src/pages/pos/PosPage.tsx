@@ -14,7 +14,7 @@ import { formatCOP } from '../../lib/format';
 import { useApi, useApiMutation } from '../../lib/hooks';
 
 export function PosPage() {
-  const { branchId, can } = useAuth();
+  const { branchId, can, hasModule } = useAuth();
   const menu = useApi<Menu>(['pos', 'menu', branchId], '/pos/menu');
   const cart = useCart();
   const [customer, setCustomer] = useState('');
@@ -90,6 +90,7 @@ export function PosPage() {
           subtotal={cart.total}
           tipsEnabled={tipsEnabled}
           allowDiscount={can('pos.discount')}
+          allowCredit={hasModule('credit') && can('credit.sell')}
           loading={sell.isPending}
           onClose={() => setCheckout(false)}
           onConfirm={(p) =>

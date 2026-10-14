@@ -7,6 +7,7 @@ import { isAllowed, SUPER_ADMIN_NAV, TENANT_NAV, type NavItem } from './componen
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/admin/AdminPage';
 import { CashPage } from './pages/cash/CashPage';
+import { CreditPage } from './pages/credit/CreditPage';
 import { ExpensesPage } from './pages/expenses/ExpensesPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
@@ -41,6 +42,7 @@ const PAGES: Record<string, ReactNode> = {
   '/mesas': <TablesPage />,
   '/pedidos-online': <OnlineOrdersPage />,
   '/gastos': <ExpensesPage />,
+  '/creditos': <CreditPage />,
 };
 
 /** Protege una ruta según el permiso y módulo del ítem de menú. */

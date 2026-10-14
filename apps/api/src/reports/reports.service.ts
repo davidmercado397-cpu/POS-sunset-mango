@@ -27,6 +27,10 @@ export class ReportsService {
     const saleWhere: Prisma.SaleWhereInput = { tenantId, branchId: { in: branchIds }, status: 'COMPLETED', completedAt: range };
 
     const adminWhere: Prisma.AdminExpenseWhereInput = { tenantId, date: range, ...(all ? {} : { branchId: branch.id }) };
+    const [creditSales, creditCollected] = await Promise.all([
+      this.prisma.receivable.aggregate({ where: { tenantId, branchId: { in: branchIds }, sale: saleWhere }, _sum: { amount: true } }),
+      this.prisma.receivablePayment.aggregate({ where: { receivable: { tenantId, branchId: { in: branchIds } }, paidAt: range }, _sum: { amount: true } }),
+    ]);
     const [adminExpenses, totals, voided, payments, tips, byDay, byHour, topProducts, byUser, expenses, purchases, cogs, sessions, byBranch] = await Promise.all([
       this.prisma.adminExpense.aggregate({ where: adminWhere, _sum: { amount: true } }),
       this.prisma.sale.aggregate({ where: saleWhere, _sum: { subtotal: true, discount: true, tipAmount: true }, _count: true }),
@@ -120,6 +124,9 @@ export class ReportsService {
         salesCount: totals._count,
         salesTotal,
         discounts: totals._sum.discount ?? 0,
+        /** Vendido a crédito en el periodo (incluido en salesTotal) y pagos de créditos recibidos */
+        creditSales: creditSales._sum.amount ?? 0,
+        creditCollected: creditCollected._sum.amount ?? 0,
         tips: totals._sum.tipAmount ?? 0,
         avgTicket: totals._count ? Math.round(salesTotal / totals._count) : 0,
         voidedCount: voided._count,

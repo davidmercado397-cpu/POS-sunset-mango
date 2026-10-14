@@ -19,6 +19,7 @@ interface SaleRow {
   table: { name: string } | null;
   createdBy: { fullName: string };
   payments: { method: PaymentMethod; amount: number }[];
+  receivable: { debtorName: string; amount: number; paidAmount: number; status: 'PENDING' | 'PAID' | 'CANCELLED' } | null;
   _count: { items: number };
 }
 
@@ -56,12 +57,13 @@ export function SalesPage() {
                 <td className="font-semibold">{s.number}</td>
                 <td className="whitespace-nowrap">{from !== to && `${formatDate(s.createdAt)} `}{formatTime(s.createdAt)}</td>
                 <td>{[s.table?.name, s.customerName].filter(Boolean).join(' · ') || '—'}</td>
-                <td>{[...new Set(s.payments.map((p) => PAYMENT_LABELS[p.method]))].join(' + ') || '—'}</td>
+                <td>{[...new Set(s.payments.map((p) => PAYMENT_LABELS[p.method])), ...(s.receivable && s.receivable.status !== 'CANCELLED' ? ['Crédito'] : [])].join(' + ') || '—'}</td>
                 <td>{s.createdBy.fullName}</td>
                 <td className="text-right font-semibold tabular-nums">{formatCOP(s.subtotal + s.tipAmount)}</td>
                 <td>
                   {s.status === 'VOIDED' && <Badge tone="red">Anulada</Badge>}
                   {s.status === 'OPEN' && <Badge tone="amber">Abierta</Badge>}
+                  {s.status === 'COMPLETED' && s.receivable?.status === 'PENDING' && <Badge tone="amber">Debe {formatCOP(s.receivable.amount - s.receivable.paidAmount)}</Badge>}
                 </td>
               </tr>
             ))}
