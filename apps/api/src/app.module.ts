@@ -36,6 +36,13 @@ function staticModules(): DynamicModule[] {
     ServeStaticModule.forRoot({
       rootPath: resolve(webDist),
       exclude: ['/api/{*path}', '/uploads/{*path}'],
+      serveStaticOptions: {
+        // index.html nunca se guarda en caché (así cada despliegue se ve de inmediato);
+        // los archivos de /assets llevan hash en el nombre y se pueden guardar un año.
+        setHeaders: (res, path) => {
+          res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache, no-store, must-revalidate');
+        },
+      },
     }),
   ];
 }
