@@ -82,6 +82,10 @@ export class ProductDto {
   @IsString() @MinLength(1) @MaxLength(80)
   name: string;
 
+  /** Código para cargar ventas por Excel; vacío = se asigna el siguiente (P001, P002…) */
+  @IsOptional() @IsString() @MaxLength(30) @Matches(/^[A-Za-z0-9._-]*$/, { message: 'El código solo admite letras, números, punto, guion y guion bajo' })
+  code?: string;
+
   @IsOptional() @IsString() @MaxLength(300)
   description?: string;
 

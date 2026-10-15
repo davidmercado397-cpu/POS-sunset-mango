@@ -4,7 +4,7 @@ import { RequireTenantModule } from '../common/decorators/branch.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ImageUpload } from '../common/image-upload';
-import { AdminExpenseDto } from './expenses.dto';
+import { AdminExpenseDto, RecurringExpenseDto, RegisterRecurringDto } from './expenses.dto';
 import { ExpensesService } from './expenses.service';
 
 /** Gastos administrativos: no pasan por la caja del día. */
@@ -17,6 +17,38 @@ export class ExpensesController {
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('from') from?: string, @Query('to') to?: string, @Query('branch') branch?: string) {
     return this.expenses.list(user, from, to, branch);
+  }
+
+  // Gastos fijos (recurrentes)
+  @Get('recurring')
+  recurring(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
+    return this.expenses.recurring(user, month);
+  }
+
+  @Post('recurring')
+  createRecurring(@CurrentUser() user: AuthUser, @Body() dto: RecurringExpenseDto) {
+    return this.expenses.saveRecurring(user, dto);
+  }
+
+  @Post('recurring/register-all')
+  registerAll(@CurrentUser() user: AuthUser, @Body() dto: RegisterRecurringDto) {
+    return this.expenses.registerAllRecurring(user, dto);
+  }
+
+  @Put('recurring/:id')
+  updateRecurring(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RecurringExpenseDto) {
+    return this.expenses.saveRecurring(user, dto, id);
+  }
+
+  @Delete('recurring/:id')
+  @HttpCode(204)
+  removeRecurring(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.expenses.removeRecurring(user, id);
+  }
+
+  @Post('recurring/:id/register')
+  register(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RegisterRecurringDto) {
+    return this.expenses.registerRecurring(user, id, dto);
   }
 
   @Post()

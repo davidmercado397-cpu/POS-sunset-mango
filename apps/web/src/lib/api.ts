@@ -97,3 +97,22 @@ export function upload<T = unknown>(path: string, file: File): Promise<T> {
   form.append('file', file);
   return api<T>(path, { method: 'POST', body: form });
 }
+
+/** Descarga un archivo de la API (con sesión y sede) y lo guarda con el nombre indicado. */
+export async function download(path: string, filename: string): Promise<void> {
+  const doFetch = () => {
+    const headers = new Headers();
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+    if (currentBranchId) headers.set('X-Branch-Id', currentBranchId);
+    return fetch(`/api${path}`, { headers, credentials: 'same-origin' });
+  };
+  let res = await doFetch();
+  if (res.status === 401 && (await refreshAccessToken())) res = await doFetch();
+  if (!res.ok) throw await parseError(res);
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

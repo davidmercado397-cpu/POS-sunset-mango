@@ -30,6 +30,7 @@ const mapRecipe = (lines: ProductWithRelations['recipe']) =>
 export function serializeProduct(p: ProductWithRelations) {
   return {
     id: p.id,
+    code: p.code,
     name: p.name,
     description: p.description,
     price: p.price,
@@ -124,7 +125,12 @@ export class CatalogService {
     if (inventoryEnabled) await this.assertInventoryItems(tenantId, dto);
     const comboItems = dto.isCombo ? await this.validComboItems(tenantId, dto, id) : [];
 
+    const code = dto.code?.trim() ? dto.code.trim().toUpperCase() : (existing?.code ?? (await this.nextCode(tenantId)));
+    const taken = await this.prisma.product.findFirst({ where: { tenantId, code, ...(id ? { id: { not: id } } : {}) }, select: { name: true } });
+    if (taken) throw new BadRequestException(`El código ${code} ya lo usa "${taken.name}"`);
+
     const data = {
+      code,
       name: dto.name.trim(),
       description: dto.description?.trim() || null,
       price: dto.price,
@@ -243,6 +249,13 @@ export class CatalogService {
     await this.prisma.product.update({ where: { id }, data: { imageUrl: null } });
     await this.uploads.remove(tenantId, product.imageUrl);
     return this.product(user, id);
+  }
+
+  /** Siguiente código libre del negocio: P001, P002… */
+  private async nextCode(tenantId: string): Promise<string> {
+    const rows = await this.prisma.product.findMany({ where: { tenantId, code: { startsWith: 'P' } }, select: { code: true } });
+    const max = rows.reduce((m, r) => Math.max(m, /^P(\d+)$/.test(r.code ?? '') ? Number(r.code!.slice(1)) : 0), 0);
+    return `P${String(max + 1).padStart(3, '0')}`;
   }
 
   async deleteProduct(user: AuthUser, id: string) {

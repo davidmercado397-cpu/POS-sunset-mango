@@ -32,6 +32,8 @@ const ACTION_LABELS: Record<string, string> = {
   'catalog.product_deleted': 'Producto eliminado',
   'sale.credit': 'Venta a crédito',
   'credit.payment': 'Pago de crédito',
+  'sales.imported': 'Ventas cargadas desde Excel',
+  'sales.import_deleted': 'Carga de ventas deshecha',
   'platform.user_updated': 'Usuario editado por el proveedor',
   'purchase.created': 'Compra registrada',
   'transfer.sent': 'Traslado enviado',

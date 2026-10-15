@@ -131,7 +131,7 @@ export class AdminController {
   }
 
   @Post('expense-categories')
-  @RequirePermissions('expenses.categories')
+  @RequireAnyPermission('expenses.categories', 'expenses.manage')
   createExpenseCategory(@CurrentUser() user: AuthUser, @Body() dto: NamedDto) {
     return this.admin.saveExpenseCategory(user, dto);
   }

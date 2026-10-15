@@ -15,6 +15,8 @@ export interface Product {
   isActive: boolean;
   sendToKitchen: boolean;
   sortOrder: number;
+  /** Código para cargar ventas por Excel */
+  code: string | null;
   categoryId: string | null;
   category: { id: string; name: string; color: string } | null;
   disabledBranchIds: string[];

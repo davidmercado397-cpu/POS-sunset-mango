@@ -72,7 +72,8 @@ export class CreditService {
       if (r.status !== 'PENDING') throw new BadRequestException(r.status === 'PAID' ? 'Esta cuenta ya está pagada' : 'Esta cuenta fue anulada');
       const balance = r.amount - r.paidAmount;
       if (dto.amount > balance) throw new BadRequestException(`El pago supera el saldo pendiente (${balance.toLocaleString('es-CO')})`);
-      if (paidAt < dayRange(r.createdAt.toISOString().slice(0, 10)).gte) {
+      // Día de la venta en hora de Colombia (no en UTC).
+      if (paidAt < dayRange(new Date(r.createdAt.getTime() - 5 * 3600_000).toISOString().slice(0, 10)).gte) {
         throw new BadRequestException('La fecha del pago no puede ser anterior a la venta');
       }
       await tx.receivablePayment.create({

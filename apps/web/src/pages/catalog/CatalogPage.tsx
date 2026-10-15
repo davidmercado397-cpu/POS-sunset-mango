@@ -32,7 +32,7 @@ function ProductsTab({ categories }: { categories: Category[] }) {
     return (products.data ?? []).filter(
       (p) =>
         (category === 'all' || p.categoryId === category || (category === 'none' && !p.categoryId) || (category === 'inactive' && !p.isActive)) &&
-        (!q || p.name.toLowerCase().includes(q)),
+        (!q || p.name.toLowerCase().includes(q) || !!p.code?.toLowerCase().includes(q)),
     );
   }, [products.data, search, category]);
 
@@ -60,6 +60,7 @@ function ProductsTab({ categories }: { categories: Category[] }) {
             <ProductImage src={p.imageUrl} alt={p.name} color={p.category?.color} className="aspect-[4/3] w-full" />
             <div className="space-y-1 p-3">
               <p className="line-clamp-2 leading-tight font-semibold">{p.name}</p>
+              {p.code && <p className="text-xs text-slate-400">{p.code}</p>}
               <p className="text-sm font-bold text-brand-dark">{formatCOP(p.price)}</p>
               <div className="flex flex-wrap gap-1">
                 {!p.isActive && <Badge tone="red">Inactivo</Badge>}

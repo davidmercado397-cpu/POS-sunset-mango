@@ -20,6 +20,7 @@ export const PERMISSION_CATALOG = [
   { key: 'pos.discount', label: 'Aplicar descuentos en las ventas', group: 'Ventas', module: 'pos' },
   { key: 'sales.view', label: 'Ver historial de ventas', group: 'Ventas', module: 'pos' },
   { key: 'sales.void', label: 'Anular ventas', group: 'Ventas', module: 'pos' },
+  { key: 'sales.import', label: 'Cargar ventas desde Excel', group: 'Ventas', module: 'pos' },
   // Caja
   { key: 'cash.open', label: 'Abrir caja', group: 'Caja', module: 'cash' },
   { key: 'cash.close', label: 'Cerrar caja', group: 'Caja', module: 'cash' },

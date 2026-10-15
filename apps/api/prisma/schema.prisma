@@ -202,6 +202,8 @@ model Product {
   id                String   @id @default(uuid())
   tenantId          String
   categoryId        String?
+  /// Código del producto (para cargar ventas por Excel); único por negocio
+  code              String?
   name              String
   description       String?
   price             Int
@@ -224,6 +226,7 @@ model Product {
   comboItems     ComboItem[]     @relation("ComboOf")
   inCombos       ComboItem[]     @relation("ComboComponent")
 
+  @@unique([tenantId, code])
   @@index([tenantId])
 }
 
@@ -328,6 +331,7 @@ model ExpenseCategory {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   movements     CashMovement[]
   adminExpenses AdminExpense[]
+  recurring     RecurringExpense[]
 
   @@unique([tenantId, name])
 }
@@ -406,6 +410,9 @@ model Sale {
   payments       Payment[]
   kitchenTickets KitchenTicket[]
   receivable     Receivable?
+  /// Venta cargada desde un archivo de Excel (no pasa por caja ni inventario)
+  importId       String?
+  import         SalesImport?    @relation(fields: [importId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, number])
   @@index([tenantId, branchId, createdAt])
@@ -756,9 +763,14 @@ model AdminExpense {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Gasto fijo del que salió este registro (para saber si ya se registró en el mes)
+  recurringId String?
+
+  category  ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurring RecurringExpense? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, date])
+  @@index([recurringId])
 }
 
 enum ReceivableStatus {
@@ -813,4 +825,42 @@ model ReceivablePayment {
 
   @@index([receivableId])
   @@index([cashSessionId])
+}
+
+/// Gasto fijo que se repite cada mes (arriendo, nómina, servicios…)
+model RecurringExpense {
+  id          String        @id @default(uuid())
+  tenantId    String
+  /// null = gasto general del negocio
+  branchId    String?
+  categoryId  String?
+  description String
+  amount      Int
+  method      PaymentMethod @default(TRANSFER)
+  /// Día del mes en que se causa (1 a 28)
+  dayOfMonth  Int           @default(1)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  expenses AdminExpense[]
+
+  @@index([tenantId])
+}
+
+/// Carga de ventas desde un archivo de Excel
+model SalesImport {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String
+  fileName    String
+  rowCount    Int
+  total       Int
+  createdById String
+  createdAt   DateTime @default(now())
+
+  sales Sale[]
+
+  @@index([tenantId, branchId])
 }

@@ -295,6 +295,7 @@ export class SalesService {
       if (!sale) throw new NotFoundException('Venta no encontrada');
       if (sale.status === 'OPEN') throw new BadRequestException('Para cuentas abiertas usa "Anular cuenta"');
       if (sale.status === 'VOIDED') throw new BadRequestException('La venta ya está anulada');
+      if (sale.importId) throw new BadRequestException('Esta venta se cargó desde Excel; para quitarla deshaz la carga en Ventas → Cargar desde Excel');
       if (sale.cashSession?.status !== 'OPEN') {
         throw new BadRequestException('La caja de esta venta ya fue cerrada; no se puede anular');
       }

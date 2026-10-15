@@ -23,6 +23,7 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
 
   const [form, setForm] = useState({
     name: product?.name ?? '',
+    code: product?.code ?? '',
     description: product?.description ?? '',
     price: product?.price ?? 0,
     categoryId: product?.categoryId ?? categories[0]?.id ?? '',
@@ -137,6 +138,10 @@ export function ProductEditor({ product, categories, products, onClose }: { prod
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nombre"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="Precio"><MoneyInput value={form.price} onChange={(price) => setForm({ ...form, price })} /></Field>
+            <Field label="Código (para cargar ventas por Excel)">
+              <Input value={form.code} maxLength={30} placeholder="Se asigna solo (P001…)" autoCapitalize="characters"
+                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9._-]/g, '') })} />
+            </Field>
             <Field label="Categoría">
               <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
                 <option value="">Sin categoría</option>
