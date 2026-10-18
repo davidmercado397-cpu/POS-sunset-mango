@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowDownCircle, ArrowUpCircle, Lock, Receipt, Unlock } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Lock, Receipt, Trash2, Unlock } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { countTotal, DenominationCounter } from '../../components/DenominationCounter';
@@ -75,7 +75,7 @@ function CurrentCash() {
 
       <div>
         <h2 className="mb-2 font-semibold">Gastos y movimientos</h2>
-        <MovementsList movements={session.movements ?? []} />
+        <MovementsList movements={session.movements ?? []} editable />
       </div>
 
       {movement && <MovementModal onClose={() => setMovement(false)} />}
@@ -92,11 +92,14 @@ function CurrentCash() {
   );
 }
 
-function MovementsList({ movements }: { movements: CashMovement[] }) {
+function MovementsList({ movements, editable = false }: { movements: CashMovement[]; editable?: boolean }) {
+  const { can } = useAuth();
+  const canDelete = editable && can('cash.movements_delete');
+  const remove = useApiMutation((id: string) => api(`/cash/movements/${id}`, { method: 'DELETE' }), { invalidate: [['cash']], success: 'Movimiento eliminado' });
   if (!movements.length) return <EmptyState>Sin gastos ni movimientos.</EmptyState>;
   return (
     <Table>
-      <thead><tr><th>Hora</th><th>Tipo</th><th>Detalle</th><th>Usuario</th><th className="text-right">Valor</th></tr></thead>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Detalle</th><th>Usuario</th><th className="text-right">Valor</th>{canDelete && <th />}</tr></thead>
       <tbody>
         {movements.map((m) => (
           <tr key={m.id}>
@@ -111,6 +114,18 @@ function MovementsList({ movements }: { movements: CashMovement[] }) {
             <td>{[m.category?.name, m.description].filter(Boolean).join(' · ')}</td>
             <td>{m.createdBy.fullName}</td>
             <td className="text-right font-semibold tabular-nums">{m.type === 'DEPOSIT' ? '+' : '−'}{formatCOP(m.amount)}</td>
+            {canDelete && (
+              <td className="text-right">
+                {m.purchaseId ? (
+                  <span className="text-xs text-slate-400" title="Este gasto es una compra; elimínala desde Compras">Compra</span>
+                ) : (
+                  <Button variant="ghost" aria-label="Eliminar" disabled={remove.isPending}
+                    onClick={() => confirm(`¿Eliminar este movimiento de ${formatCOP(m.amount)}? El valor se corrige en el cuadre de la caja.`) && remove.mutate(m.id)}>
+                    <Trash2 className="size-4 text-red-600" />
+                  </Button>
+                )}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

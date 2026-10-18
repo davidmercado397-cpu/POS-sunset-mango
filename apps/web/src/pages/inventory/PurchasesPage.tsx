@@ -25,7 +25,7 @@ export function PurchasesPage() {
 }
 
 function PurchasesTab() {
-  const { branchId } = useAuth();
+  const { branchId, can } = useAuth();
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 86400_000 - 5 * 3600_000).toISOString().slice(0, 10));
   const [to, setTo] = useState(todayISO());
   const [creating, setCreating] = useState(false);
@@ -33,6 +33,9 @@ function PurchasesTab() {
   const list = useApi<PurchaseRow[]>(['purchases', branchId, from, to], `/purchases?from=${from}&to=${to}`);
   const detail = useApi<PurchaseDetail>(['purchases', 'detail', selected], selected ? `/purchases/${selected}` : null);
   const total = list.data?.reduce((s, p) => s + p.total, 0) ?? 0;
+  const remove = useApiMutation((id: string) => api(`/purchases/${id}`, { method: 'DELETE' }), {
+    invalidate: [['purchases'], ['inventory'], ['cash']], success: 'Compra eliminada',
+  });
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -59,7 +62,14 @@ function PurchasesTab() {
       )}
       {creating && <PurchaseModal onClose={() => setCreating(false)} />}
       {selected && detail.data && (
-        <Modal open size="lg" onClose={() => setSelected(null)} title={`Compra ${detail.data.invoiceNumber ?? ''}`}>
+        <Modal open size="lg" onClose={() => setSelected(null)} title={`Compra ${detail.data.invoiceNumber ?? ''}`}
+          footer={can('purchases.delete') ? (
+            <Button variant="danger" loading={remove.isPending}
+              onClick={() => confirm(`¿Eliminar esta compra de ${formatCOP(detail.data!.total)}? Se quitará del inventario${detail.data!.paidFromCash ? ' y el efectivo vuelve a la caja' : ''}. Esta acción no se puede deshacer.`) &&
+                remove.mutate(detail.data!.id, { onSuccess: () => setSelected(null) })}>
+              <Trash2 className="size-4" /> Eliminar compra
+            </Button>
+          ) : undefined}>
           <div className="space-y-3 text-sm">
             <p className="text-slate-500">{formatDate(detail.data.date)} · {detail.data.supplier?.name ?? 'Sin proveedor'}</p>
             <Table>

@@ -263,6 +263,42 @@ export class InventoryService {
     });
   }
 
+  /**
+   * Elimina una compra registrada por error: quita su entrada del kardex (recalculando existencias y costo
+   * promedio) y, si se pagó con la caja, el gasto de esa caja (que debe seguir abierta).
+   */
+  async deletePurchase(user: AuthUser, branch: BranchContext, id: string) {
+    const tenantId = tenantOf(user);
+    const p = await this.prisma.purchase.findFirst({ where: { id, tenantId, branchId: branch.id }, include: { items: true, supplier: true } });
+    if (!p) throw new NotFoundException('Compra no encontrada');
+    const local = new Date(p.date.getTime() - 5 * 3600_000);
+    const closed = await this.prisma.monthlyClose.findUnique({
+      where: { branchId_year_month: { branchId: branch.id, year: local.getUTCFullYear(), month: local.getUTCMonth() + 1 } },
+    });
+    if (closed) throw new BadRequestException('El mes de esta compra ya fue cerrado. Pide al administrador que lo reabra');
+    const movement = await this.prisma.cashMovement.findFirst({ where: { purchaseId: id }, include: { session: true } });
+    if (movement && movement.session.status !== 'OPEN') {
+      throw new BadRequestException('Esta compra se pagó con una caja que ya fue cerrada; no se puede eliminar');
+    }
+    const itemIds = [...new Set(p.items.map((i) => i.itemId))];
+    await this.prisma.$transaction(async (tx) => {
+      if (movement) {
+        await this.cash.lockOpen(tx, movement.sessionId, true);
+        await tx.cashMovement.delete({ where: { id: movement.id } });
+      }
+      if (itemIds.length) {
+        await tx.$queryRaw`SELECT "itemId" FROM "Stock" WHERE "branchId" = ${branch.id} AND "itemId" IN (${Prisma.join(itemIds)}) FOR UPDATE`;
+      }
+      await tx.stockMovement.deleteMany({ where: { refType: 'Purchase', refId: id } });
+      await tx.purchase.delete({ where: { id } });
+      for (const itemId of itemIds) await this.recalculate(tx, itemId, branch.id);
+    });
+    await this.audit.log({
+      tenantId, branchId: branch.id, userId: user.id, action: 'purchase.deleted', entity: 'Purchase', entityId: id,
+      data: { total: p.total, supplier: p.supplier?.name, invoiceNumber: p.invoiceNumber, paidFromCash: p.paidFromCash, cashRefunded: !!movement },
+    });
+  }
+
   async purchase(user: AuthUser, branch: BranchContext, id: string) {
     const p = await this.prisma.purchase.findFirst({
       where: { id, tenantId: tenantOf(user), branchId: branch.id },
@@ -324,6 +360,7 @@ export class InventoryService {
             type: 'EXPENSE',
             amount: total,
             description: `Compra${purchase.supplier ? ` a ${purchase.supplier.name}` : ''}${purchase.invoiceNumber ? ` (fact. ${purchase.invoiceNumber})` : ''}`,
+            purchaseId: purchase.id,
             createdById: user.id,
           },
         });

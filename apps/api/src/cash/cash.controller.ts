@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { AuthUser, BranchContext } from '../common/auth-user';
 import { CurrentBranch, RequireModule } from '../common/decorators/branch.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -27,6 +27,13 @@ export class CashController {
   @RequirePermissions('cash.movements')
   movement(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Body() dto: CashMovementDto) {
     return this.cash.addMovement(user, branch, dto);
+  }
+
+  @Delete('movements/:id')
+  @HttpCode(204)
+  @RequirePermissions('cash.movements_delete')
+  removeMovement(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.cash.removeMovement(user, branch, id);
   }
 
   @Post('close')

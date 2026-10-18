@@ -353,6 +353,8 @@ model CashMovement {
   amount      Int
   categoryId  String?
   description String?
+  /// Compra pagada con efectivo de la caja que generó este gasto
+  purchaseId  String?
   createdById String
   createdAt   DateTime         @default(now())
 
@@ -361,6 +363,7 @@ model CashMovement {
   createdBy User             @relation(fields: [createdById], references: [id])
 
   @@index([sessionId])
+  @@index([purchaseId])
 }
 
 // ───────────────────────── Ventas ─────────────────────────

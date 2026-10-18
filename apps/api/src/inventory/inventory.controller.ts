@@ -119,6 +119,14 @@ export class InventoryController {
     return this.inventory.purchase(user, branch, id);
   }
 
+  @Delete('purchases/:id')
+  @HttpCode(204)
+  @RequireModule('purchases')
+  @RequirePermissions('purchases.delete')
+  deletePurchase(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.inventory.deletePurchase(user, branch, id);
+  }
+
   @Post('purchases')
   @RequireModule('purchases')
   @RequirePermissions('purchases.manage')

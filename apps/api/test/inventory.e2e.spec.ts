@@ -163,4 +163,50 @@ describe('Inventario, compras y traslados', () => {
     expect(await prisma.inventoryItem.count({ where: { id: { in: [usado, enReceta] } } })).toBe(2);
     expect(await prisma.auditLog.count({ where: { action: 'inventory.item_deleted' } })).toBe(1);
   });
+
+  it('eliminar compras y gastos de caja registrados por error', async () => {
+    await ctx.admin.post('/cash/open', { openingAmount: 10000 }).expect(201);
+    const a = await ctx.admin.post('/purchases', { items: [{ itemId: carne, quantity: 1000, unitCost: 30 }] }).expect(201);
+    const b = await ctx.admin.post('/purchases', { paidFromCash: true, items: [{ itemId: carne, quantity: 100, unitCost: 50 }] }).expect(201);
+    await ctx.admin.post('/inventory/adjust', { mode: 'WASTE', lines: [{ itemId: carne, quantity: 200 }] }).expect(201);
+    expect((await stockOf(ctx.branchId, carne)).quantity).toBe(900);
+    let cash = (await ctx.admin.get('/cash/current').expect(200)).body;
+    expect(cash.summary.expected.CASH).toBe(5000);
+
+    // El gasto de una compra no se borra desde la caja.
+    const purchaseMovement = cash.session.movements.find((m: { description: string }) => m.description.startsWith('Compra'));
+    await ctx.admin.delete(`/cash/movements/${purchaseMovement.id}`).expect(400);
+
+    // Eliminar la compra pagada con caja devuelve el efectivo y recalcula el kardex.
+    await ctx.admin.delete(`/purchases/${b.body.id}`).expect(204);
+    expect(await stockOf(ctx.branchId, carne)).toEqual({ quantity: 800, avgCost: 30 });
+    cash = (await ctx.admin.get('/cash/current').expect(200)).body;
+    expect(cash.summary.expected.CASH).toBe(10000);
+    const kardex = (await ctx.admin.get(`/inventory/movements?itemId=${carne}`).expect(200)).body;
+    expect(kardex.map((m: { type: string; balanceAfter: number }) => [m.type, m.balanceAfter])).toEqual([['WASTE', 800], ['PURCHASE', 1000]]);
+    await ctx.admin.delete(`/purchases/${b.body.id}`).expect(404);
+
+    // Gasto de caja normal: se elimina mientras la caja está abierta.
+    const exp = await ctx.admin.post('/cash/movements', { type: 'EXPENSE', amount: 3000, description: 'Hielo' }).expect(201);
+    expect((await ctx.admin.get('/cash/current').expect(200)).body.summary.expected.CASH).toBe(7000);
+    await ctx.admin.delete(`/cash/movements/${exp.body.id}`).expect(204);
+    expect((await ctx.admin.get('/cash/current').expect(200)).body.summary.expected.CASH).toBe(10000);
+
+    // Con la caja cerrada ya no se puede.
+    const exp2 = await ctx.admin.post('/cash/movements', { type: 'EXPENSE', amount: 1000, description: 'Bolsas' }).expect(201);
+    await ctx.admin.post('/cash/close', { counted: { CASH: 9000, TRANSFER: 0, QR_BOLD: 0 } }).expect(201);
+    await ctx.admin.delete(`/cash/movements/${exp2.body.id}`).expect(400);
+
+    // Sin permiso (administrador de sede) no puede eliminar compras.
+    const roles = await ctx.admin.get('/admin/roles').expect(200);
+    const sede = roles.body.roles.find((r: { name: string }) => r.name === 'Administrador de sede');
+    expect(sede.permissions).not.toContain('purchases.delete');
+    await ctx.admin.post('/admin/users', { fullName: 'Sede', username: 'sede3@inv.com', password: 'Secreta123!', roleId: sede.id, branchIds: [ctx.branchId] }).expect(201);
+    const other = client(app, await loginAs(app, 'sede3@inv.com'), ctx.branchId);
+    await other.delete(`/purchases/${a.body.id}`).expect(403);
+
+    await ctx.admin.delete(`/purchases/${a.body.id}`).expect(204);
+    expect((await stockOf(ctx.branchId, carne)).quantity).toBe(-200);
+    expect(await prisma.auditLog.count({ where: { action: { in: ['purchase.deleted', 'cash.movement_deleted'] } } })).toBe(3);
+  });
 });

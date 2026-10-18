@@ -33,6 +33,8 @@ const ACTION_LABELS: Record<string, string> = {
   'sale.credit': 'Venta a crédito',
   'credit.payment': 'Pago de crédito',
   'sales.imported': 'Ventas cargadas desde Excel',
+  'purchase.deleted': 'Compra eliminada',
+  'cash.movement_deleted': 'Movimiento de caja eliminado',
   'sales.import_deleted': 'Carga de ventas deshecha',
   'platform.user_updated': 'Usuario editado por el proveedor',
   'purchase.created': 'Compra registrada',

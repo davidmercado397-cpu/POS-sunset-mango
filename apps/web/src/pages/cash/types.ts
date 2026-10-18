@@ -28,6 +28,7 @@ export interface CashMovement {
   method?: 'CASH' | 'TRANSFER';
   amount: number;
   description: string | null;
+  purchaseId?: string | null;
   createdAt: string;
   category: { name: string } | null;
   createdBy: { fullName: string };

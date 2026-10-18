@@ -25,6 +25,7 @@ export const PERMISSION_CATALOG = [
   { key: 'cash.open', label: 'Abrir caja', group: 'Caja', module: 'cash' },
   { key: 'cash.close', label: 'Cerrar caja', group: 'Caja', module: 'cash' },
   { key: 'cash.movements', label: 'Registrar gastos y movimientos de efectivo', group: 'Caja', module: 'cash' },
+  { key: 'cash.movements_delete', label: 'Eliminar gastos y movimientos de la caja abierta', group: 'Caja', module: 'cash' },
   { key: 'cash.view', label: 'Ver historial de cierres', group: 'Caja', module: 'cash' },
   { key: 'cash.monthly', label: 'Hacer el cierre mensual', group: 'Caja', module: 'cash' },
   { key: 'cash.monthly_reopen', label: 'Reabrir un mes cerrado', group: 'Caja', module: 'cash' },
@@ -36,6 +37,7 @@ export const PERMISSION_CATALOG = [
   { key: 'inventory.edit', label: 'Corregir movimientos y costos de inventario', group: 'Inventario', module: 'inventory' },
   { key: 'inventory.delete', label: 'Eliminar ítems inactivos sin movimientos', group: 'Inventario', module: 'inventory' },
   { key: 'purchases.manage', label: 'Registrar compras y proveedores', group: 'Inventario', module: 'purchases' },
+  { key: 'purchases.delete', label: 'Eliminar compras registradas por error', group: 'Inventario', module: 'purchases' },
   { key: 'transfers.manage', label: 'Traslados entre sedes', group: 'Inventario', module: 'transfers' },
   // Cocina y mesas
   { key: 'kitchen.view', label: 'Pantalla de cocina', group: 'Cocina', module: 'kitchen' },

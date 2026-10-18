@@ -238,6 +238,23 @@ export class CashService {
    * Bloquea la sesión dentro de una transacción. Las ventas usan bloqueo compartido y el cierre
    * bloqueo exclusivo, así una venta nunca queda registrada en una caja que se está cerrando.
    */
+  /** Elimina un gasto o movimiento de la caja abierta (los de una caja cerrada ya no se tocan). */
+  async removeMovement(user: AuthUser, branch: BranchContext, id: string) {
+    const tenantId = tenantOf(user);
+    const movement = await this.prisma.cashMovement.findFirst({ where: { id, tenantId, branchId: branch.id }, include: { session: true } });
+    if (!movement) throw new NotFoundException('Movimiento no encontrado');
+    if (movement.purchaseId) throw new BadRequestException('Este gasto corresponde a una compra; elimínala desde Compras para devolver también el inventario');
+    if (movement.session.status !== 'OPEN') throw new BadRequestException('La caja de este movimiento ya fue cerrada; no se puede eliminar');
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockOpen(tx, movement.sessionId, true);
+      await tx.cashMovement.delete({ where: { id } });
+    });
+    await this.audit.log({
+      tenantId, branchId: branch.id, userId: user.id, action: 'cash.movement_deleted', entity: 'CashMovement', entityId: id,
+      data: { type: movement.type, method: movement.method, amount: movement.amount, description: movement.description },
+    });
+  }
+
   async lockOpen(tx: Prisma.TransactionClient, sessionId: string, exclusive = false) {
     const rows = exclusive
       ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "CashSession" WHERE id = ${sessionId} AND status = 'OPEN' FOR UPDATE`
