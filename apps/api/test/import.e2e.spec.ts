@@ -14,7 +14,7 @@ describe('Gastos fijos y carga de ventas por Excel', () => {
   beforeEach(async () => {
     await resetDb(prisma);
     await createSuperAdmin(prisma);
-    ctx = await setupTenant(app, ['expenses', 'reports', 'inventory']);
+    ctx = await setupTenant(app, ['expenses', 'reports', 'inventory', 'lump_sales']);
   });
 
   it('gastos fijos: se crean, se registran una vez por mes y se pueden registrar todos', async () => {
@@ -97,5 +97,39 @@ describe('Gastos fijos y carga de ventas por Excel', () => {
     expect(imports).toHaveLength(1);
     await ctx.admin.delete(`/sales-import/${imports[0].id}`).expect(204);
     expect(await prisma.sale.count()).toBe(0);
+  });
+
+  it('ventas por valor total (sin producto): por formulario y por Excel, solo con el módulo activo', async () => {
+    // Formulario: un día con efectivo y transferencia, otro solo QR.
+    await ctx.admin.post('/sales-import/manual', { rows: [{ date: '2999-01-01', CASH: 1 }] }).expect(400);
+    await ctx.admin.post('/sales-import/manual', { rows: [{ date: '2026-09-01' }] }).expect(400);
+    const res = await ctx.admin.post('/sales-import/manual', {
+      rows: [{ date: '2026-09-01', CASH: 300000, TRANSFER: 45000, notes: 'Cierre del día' }, { date: '2026-09-02', QR_BOLD: 120000 }],
+    }).expect(201);
+    expect(res.body).toMatchObject({ rowCount: 2, total: 465000 });
+    const sales = await prisma.sale.findMany({ include: { items: true, payments: true }, orderBy: { number: 'asc' } });
+    expect(sales[0]).toMatchObject({ subtotal: 345000, notes: 'Cierre del día', cashSessionId: null });
+    expect(sales[0].items[0]).toMatchObject({ productId: null, productName: 'Venta sin detalle de productos', lineTotal: 345000 });
+    expect(sales[0].payments.map((p) => [p.method, p.amount]).sort()).toEqual([['CASH', 300000], ['TRANSFER', 45000]]);
+    expect(await prisma.stockMovement.count()).toBe(0);
+
+    const report = (await ctx.admin.get('/reports/summary?from=2026-09-01&to=2026-09-30').expect(200)).body;
+    expect(report.totals).toMatchObject({ salesCount: 2, salesTotal: 465000 });
+
+    // Excel: una fila sin código se acepta como venta por valor total (cantidad opcional).
+    const ExcelJSmod = (await import('exceljs')).default;
+    const wb = new ExcelJSmod.Workbook();
+    const ws = wb.addWorksheet('Ventas');
+    ws.addRow(['Fecha', 'Código', 'Cantidad', 'Método', 'Valor']);
+    ws.addRow(['2026-09-03', null, null, 'Efectivo', 80000]);
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    await ctx.admin.post('/sales-import').attach('file', buf, 'dia.xlsx').expect(201);
+    expect(await prisma.sale.count()).toBe(3);
+
+    // Con el módulo apagado en la sede: ni formulario ni filas sin código.
+    await ctx.admin.put(`/admin/branches/${ctx.branchId}`, { name: 'Sede', activeModules: ['expenses', 'reports'] }).expect(200);
+    await ctx.admin.post('/sales-import/manual', { rows: [{ date: '2026-09-04', CASH: 1000 }] }).expect(400);
+    const bad = await ctx.admin.post('/sales-import').attach('file', buf, 'dia.xlsx').expect(400);
+    expect(bad.body.errors[0]).toContain('falta el código');
   });
 });

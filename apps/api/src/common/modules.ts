@@ -17,6 +17,7 @@ export const APP_MODULES = {
   ONLINE: 'online',
   EXPENSES: 'expenses',
   CREDIT: 'credit',
+  LUMP_SALES: 'lump_sales',
 } as const;
 
 export type AppModule = (typeof APP_MODULES)[keyof typeof APP_MODULES];
@@ -34,6 +35,7 @@ export const MODULE_CATALOG: { key: AppModule; label: string; description: strin
   { key: 'tables', label: 'Mesas y pedidos abiertos', description: 'Cuentas abiertas por mesa', core: false },
   { key: 'expenses', label: 'Gastos administrativos', description: 'Arriendo, nómina, servicios y otros gastos que no salen de la caja del día', core: false },
   { key: 'credit', label: 'Ventas a crédito (fiado)', description: 'Vender a crédito y llevar las cuentas por cobrar hasta que el cliente pague', core: false },
+  { key: 'lump_sales', label: 'Ventas por valor total (sin producto)', description: 'Registrar lo vendido en el día sin detallar productos: no descuenta inventario ni cuenta en ventas por producto', core: false },
   { key: 'reports', label: 'Reportes', description: 'Reportes de ventas, caja e inventario', core: false },
   { key: 'online', label: 'Pedidos en línea', description: 'Enlace público para domicilios y pedidos para recoger', core: false },
 ];

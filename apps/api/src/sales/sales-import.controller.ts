@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Post, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Post, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { AuthUser, BranchContext } from '../common/auth-user';
@@ -6,6 +6,7 @@ import { CurrentBranch, RequireModule } from '../common/decorators/branch.decora
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { SalesImportService } from './sales-import.service';
+import { LumpSalesDto } from './sales.dto';
 
 /** Carga de ventas por archivo de Excel en la sede seleccionada. */
 @Controller('sales-import')
@@ -25,6 +26,11 @@ export class SalesImportController {
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
   upload(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @UploadedFile() file: Express.Multer.File) {
     return this.imports.import(user, branch, file);
+  }
+
+  @Post('manual')
+  manual(@CurrentUser() user: AuthUser, @CurrentBranch() branch: BranchContext, @Body() dto: LumpSalesDto) {
+    return this.imports.manual(user, branch, dto);
   }
 
   @Get()

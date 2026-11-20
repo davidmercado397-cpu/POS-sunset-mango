@@ -5,7 +5,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { Modal } from '../../components/Modal';
 import { SaleDetailView } from '../../components/pos/SaleDetailView';
 import type { PaymentMethod, SaleDetail } from '../../components/pos/types';
-import { Badge, Button, EmptyState, Field, Input, PageHeader, Select, Table, Textarea } from '../../components/ui';
+import { Badge, Button, EmptyState, Field, Input, PageHeader, Select, Table, Tabs, Textarea } from '../../components/ui';
+import { MoneyInput } from '../../components/MoneyInput';
 import { api, ApiError, download, upload } from '../../lib/api';
 import { formatCOP, formatDateTime, formatTime, PAYMENT_LABELS, todayISO, formatDate } from '../../lib/format';
 import { toast } from '../../components/toast';
@@ -40,7 +41,7 @@ export function SalesPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="Ventas" subtitle={sales.data ? `${completed.length} ventas pagadas · ${formatCOP(total)}` : undefined}
-        actions={can('sales.import') && <Button variant="secondary" onClick={() => setImporting(true)}><FileSpreadsheet className="size-4" /> Cargar desde Excel</Button>} />
+        actions={can('sales.import') && <Button variant="secondary" onClick={() => setImporting(true)}><FileSpreadsheet className="size-4" /> Carga masiva</Button>} />
       {importing && <ImportModal onClose={() => setImporting(false)} />}
       <div className="mb-4 flex flex-wrap gap-3">
         <Field label="Desde"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
@@ -111,7 +112,9 @@ interface ImportRow { id: string; fileName: string; rowCount: number; total: num
 
 /** Carga de ventas por Excel: plantilla, archivo, errores por fila e historial con opción de deshacer. */
 function ImportModal({ onClose }: { onClose: () => void }) {
-  const { branchId } = useAuth();
+  const { branchId, hasModule } = useAuth();
+  const lump = hasModule('lump_sales');
+  const [mode, setMode] = useState<'excel' | 'total'>(lump ? 'total' : 'excel');
   const qc = useQueryClient();
   const history = useApi<ImportRow[]>(['sales-import', branchId], '/sales-import');
   const [file, setFile] = useState<File | null>(null);
@@ -140,11 +143,14 @@ function ImportModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal open size="lg" onClose={onClose} title="Cargar ventas desde Excel">
+    <Modal open size="lg" onClose={onClose} title="Carga masiva de ventas">
       <div className="space-y-5 text-sm">
+        {lump && <Tabs value={mode} onChange={setMode} tabs={[{ value: 'total', label: 'Por valor total' }, { value: 'excel', label: 'Desde Excel' }]} />}
+        {mode === 'total' ? <LumpSalesForm /> : (
+        <>
         <ol className="list-decimal space-y-1 pl-5 text-slate-600">
           <li>Descarga la plantilla: trae la hoja <b>Ventas</b> para llenar y la hoja <b>Productos</b> con el código de cada producto.</li>
-          <li>Llena una fila por producto vendido: fecha, código, cantidad, método de pago (Efectivo, Transferencia o QR Bold) y valor pagado.</li>
+          <li>Llena una fila por producto vendido: fecha, código, cantidad, método de pago (Efectivo, Transferencia o QR Bold) y valor pagado.{lump && ' En esta sede puedes dejar el código vacío para registrar un valor sin producto.'}</li>
           <li>Sube el archivo. Si alguna fila tiene un error no se carga nada y te mostramos qué corregir.</li>
         </ol>
         <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Las ventas cargadas quedan en la sede actual con la fecha de cada fila y aparecen en Ventas y Reportes. No afectan la caja del día ni descuentan inventario.</p>
@@ -164,6 +170,8 @@ function ImportModal({ onClose }: { onClose: () => void }) {
             <p className="mb-1 font-semibold">Corrige estas filas y vuelve a subir el archivo:</p>
             <ul className="list-disc space-y-0.5 pl-5">{errors.map((e) => <li key={e}>{e}</li>)}</ul>
           </div>
+        )}
+        </>
         )}
         <div>
           <p className="mb-2 font-semibold">Cargas anteriores en esta sede</p>
@@ -186,5 +194,53 @@ function ImportModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+type LumpRow = { date: string; CASH: number; TRANSFER: number; QR_BOLD: number; notes: string };
+const emptyLump = (): LumpRow => ({ date: todayISO(), CASH: 0, TRANSFER: 0, QR_BOLD: 0, notes: '' });
+
+/** Ventas por valor total: lo vendido en el día por método de pago, sin detallar productos. */
+function LumpSalesForm() {
+  const { branchId } = useAuth();
+  const [rows, setRows] = useState<LumpRow[]>([emptyLump()]);
+  const save = useApiMutation(
+    () => api<{ rowCount: number; total: number }>('/sales-import/manual', { method: 'POST', json: { rows: rows.map((r) => ({ ...r, notes: r.notes.trim() || undefined })) } }),
+    { invalidate: [['sales-import', branchId], ['sales'], ['reports']] },
+  );
+  const update = (i: number, patch: Partial<LumpRow>) => setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const rowTotal = (r: LumpRow) => r.CASH + r.TRANSFER + r.QR_BOLD;
+  const total = rows.reduce((s, r) => s + rowTotal(r), 0);
+  const invalid = rows.some((r) => !r.date || rowTotal(r) <= 0);
+  return (
+    <div className="space-y-4">
+      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+        Registra lo vendido en el día sin detallar productos. Cuenta en Ventas, Reportes y el cierre mensual, pero no descuenta inventario, no aparece en ventas por producto y no afecta la caja del día.
+      </p>
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={i} className="grid gap-2 rounded-2xl border border-slate-200 p-3 sm:grid-cols-[150px_1fr_1fr_1fr_auto]">
+            <Field label="Fecha"><Input type="date" value={r.date} max={todayISO()} onChange={(e) => update(i, { date: e.target.value })} /></Field>
+            <Field label="Efectivo"><MoneyInput value={r.CASH} onChange={(CASH) => update(i, { CASH })} placeholder="0" /></Field>
+            <Field label="Transferencia"><MoneyInput value={r.TRANSFER} onChange={(TRANSFER) => update(i, { TRANSFER })} placeholder="0" /></Field>
+            <Field label="QR / Bold"><MoneyInput value={r.QR_BOLD} onChange={(QR_BOLD) => update(i, { QR_BOLD })} placeholder="0" /></Field>
+            <div className="flex items-end">
+              {rows.length > 1 && <Button variant="ghost" aria-label="Quitar día" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}><Trash2 className="size-4 text-red-600" /></Button>}
+            </div>
+            <div className="sm:col-span-5">
+              <Input value={r.notes} maxLength={300} placeholder="Observación (opcional)" onChange={(e) => update(i, { notes: e.target.value })} />
+            </div>
+            <p className="text-right text-xs text-slate-500 sm:col-span-5">Total del día: <b className="text-slate-800">{formatCOP(rowTotal(r))}</b></p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="secondary" onClick={() => setRows([...rows, emptyLump()])}>+ Agregar otro día</Button>
+        <Button disabled={invalid} loading={save.isPending}
+          onClick={() => save.mutate(undefined, { onSuccess: (res) => { toast.success(`${res.rowCount} venta(s) registradas por ${formatCOP(res.total)}`); setRows([emptyLump()]); } })}>
+          Registrar {formatCOP(total)}
+        </Button>
+      </div>
+    </div>
   );
 }

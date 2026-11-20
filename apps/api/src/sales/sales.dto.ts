@@ -1,7 +1,7 @@
 import { PaymentMethod } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested,
+  ArrayMaxSize, ArrayMinSize, IsArray, Matches, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 
 export class SaleItemDto {
@@ -97,4 +97,27 @@ export class AddItemsDto {
 export class VoidDto {
   @IsString() @MinLength(3, { message: 'Escribe el motivo de la anulación' }) @MaxLength(300)
   reason: string;
+}
+
+/** Un día de ventas por valor total (sin producto): lo recibido en cada método de pago */
+export class LumpSaleRowDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida' })
+  date: string;
+
+  @IsOptional() @IsInt() @Min(0) @Max(1_000_000_000)
+  CASH?: number;
+
+  @IsOptional() @IsInt() @Min(0) @Max(1_000_000_000)
+  TRANSFER?: number;
+
+  @IsOptional() @IsInt() @Min(0) @Max(1_000_000_000)
+  QR_BOLD?: number;
+
+  @IsOptional() @IsString() @MaxLength(300)
+  notes?: string;
+}
+
+export class LumpSalesDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(62) @ValidateNested({ each: true }) @Type(() => LumpSaleRowDto)
+  rows: LumpSaleRowDto[];
 }

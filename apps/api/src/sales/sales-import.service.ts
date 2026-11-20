@@ -5,19 +5,24 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser, BranchContext } from '../common/auth-user';
 import { dayRange, tenantOf } from '../common/util';
 import { PrismaService } from '../prisma/prisma.service';
+import { LumpSalesDto } from './sales.dto';
 
 const MAX_ROWS = 3000;
 const HEADERS = ['Fecha (AAAA-MM-DD)', 'Código del producto', 'Cantidad', 'Método de pago', 'Valor pagado'];
 
 interface ParsedRow {
-  row: number;
   day: string;
-  productId: string;
+  /** null = venta por valor total, sin producto */
+  productId: string | null;
   productName: string;
   quantity: number;
-  method: PaymentMethod;
+  payments: { method: PaymentMethod; amount: number }[];
   amount: number;
+  note: string;
 }
+
+/** Nombre de la línea de una venta registrada sin detallar productos. */
+export const LUMP_ITEM_NAME = 'Venta sin detalle de productos';
 
 const plain = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
@@ -109,6 +114,7 @@ export class SalesImportService {
       'Cómo llenar la hoja "Ventas" (una fila por producto vendido):',
       '• Fecha: el día de la venta, en formato AAAA-MM-DD (ej. 2026-10-15). También se acepta DD/MM/AAAA.',
       '• Código del producto: el de la hoja "Productos" (se ve y se edita en Catálogo).',
+      '  Si la sede tiene activas las "Ventas por valor total", puedes dejar el código vacío para registrar un valor sin producto.',
       '• Cantidad: unidades vendidas (número entero).',
       '• Método de pago: Efectivo, Transferencia o QR Bold.',
       '• Valor pagado: lo que se cobró por esa fila, en pesos y sin puntos (ej. 11000).',
@@ -128,12 +134,39 @@ export class SalesImportService {
     if (!file) throw new BadRequestException('Adjunta el archivo de Excel');
     const tenantId = tenantOf(user);
     const rows = await this.parse(tenantId, branch, file.buffer);
-    const total = rows.reduce((s, r) => s + r.amount, 0);
+    return this.save(user, branch, (file.originalname || 'ventas.xlsx').slice(0, 120), rows);
+  }
 
+  /** Ventas por valor total (sin producto): una por día con lo recibido en cada método de pago. */
+  async manual(user: AuthUser, branch: BranchContext, dto: LumpSalesDto) {
+    if (!branch.modules.includes('lump_sales')) throw new BadRequestException('Las ventas por valor total no están activas en esta sede');
+    const tenantId = tenantOf(user);
+    const closedMonths = await this.closedMonths(branch.id);
+    const today = dayRange().gte;
+    const errors: string[] = [];
+    const rows: ParsedRow[] = [];
+    dto.rows.forEach((r, i) => {
+      const label = `Línea ${i + 1}`;
+      const payments = (['CASH', 'TRANSFER', 'QR_BOLD'] as PaymentMethod[])
+        .map((method) => ({ method, amount: r[method] ?? 0 }))
+        .filter((p) => p.amount > 0);
+      const amount = payments.reduce((s, p) => s + p.amount, 0);
+      if (new Date(`${r.date}T00:00:00-05:00`) > today) errors.push(`${label}: la fecha no puede ser futura`);
+      else if (closedMonths.has(r.date.slice(0, 7))) errors.push(`${label}: el mes ${r.date.slice(0, 7)} ya fue cerrado`);
+      if (!amount) errors.push(`${label}: escribe el valor vendido en al menos un método de pago`);
+      rows.push({ day: r.date, productId: null, productName: LUMP_ITEM_NAME, quantity: 1, payments, amount, note: r.notes?.trim() || 'Venta por valor total' });
+    });
+    if (errors.length) throw new BadRequestException({ message: errors.join('. '), errors });
+    const name = rows.length === 1 ? `Venta por valor total ${rows[0].day}` : `Ventas por valor total (${rows.length} días)`;
+    return this.save(user, branch, name, rows, tenantId);
+  }
+
+  private async save(user: AuthUser, branch: BranchContext, fileName: string, rows: ParsedRow[], tenantId = tenantOf(user)) {
+    const total = rows.reduce((s, r) => s + r.amount, 0);
     const batch = await this.prisma.$transaction(
       async (tx) => {
         const batch = await tx.salesImport.create({
-          data: { tenantId, branchId: branch.id, fileName: (file.originalname || 'ventas.xlsx').slice(0, 120), rowCount: rows.length, total, createdById: user.id },
+          data: { tenantId, branchId: branch.id, fileName, rowCount: rows.length, total, createdById: user.id },
         });
         for (const r of rows) {
           const { saleSeq: number } = await tx.branch.update({ where: { id: branch.id }, data: { saleSeq: { increment: 1 } }, select: { saleSeq: true } });
@@ -141,9 +174,11 @@ export class SalesImportService {
           await tx.sale.create({
             data: {
               tenantId, branchId: branch.id, number, status: 'COMPLETED', subtotal: r.amount,
-              notes: `Cargada desde Excel (fila ${r.row})`, createdById: user.id, createdAt: at, completedAt: at, importId: batch.id,
+              notes: r.note, createdById: user.id, createdAt: at, completedAt: at, importId: batch.id,
               items: { create: { productId: r.productId, productName: r.productName, unitPrice: Math.round(r.amount / r.quantity), quantity: r.quantity, lineTotal: r.amount, sentAt: at } },
-              payments: { create: { method: r.method, amount: r.amount, received: r.method === 'CASH' ? r.amount : null, change: r.method === 'CASH' ? 0 : null } },
+              payments: {
+                create: r.payments.map((p) => ({ method: p.method, amount: p.amount, received: p.method === 'CASH' ? p.amount : null, change: p.method === 'CASH' ? 0 : null })),
+              },
             },
           });
         }
@@ -180,6 +215,11 @@ export class SalesImportService {
     await this.audit.log({ tenantId, branchId: branch.id, userId: user.id, action: 'sales.import_deleted', entity: 'SalesImport', entityId: id, data: { rows: batch.rowCount, total: batch.total, file: batch.fileName } });
   }
 
+  private async closedMonths(branchId: string) {
+    const rows = await this.prisma.monthlyClose.findMany({ where: { branchId }, select: { year: true, month: true } });
+    return new Set(rows.map((c) => `${c.year}-${String(c.month).padStart(2, '0')}`));
+  }
+
   /** Lee y valida todo el archivo; si hay errores no se carga nada. */
   private async parse(tenantId: string, branch: BranchContext, buffer: Buffer): Promise<ParsedRow[]> {
     const wb = new ExcelJS.Workbook();
@@ -194,9 +234,8 @@ export class SalesImportService {
     const products = await this.prisma.product.findMany({ where: { tenantId }, select: { id: true, code: true, name: true } });
     const byCode = new Map(products.filter((p) => p.code).map((p) => [plain(p.code!), p]));
     const today = dayRange().gte;
-    const closedMonths = new Set(
-      (await this.prisma.monthlyClose.findMany({ where: { branchId: branch.id }, select: { year: true, month: true } })).map((c) => `${c.year}-${String(c.month).padStart(2, '0')}`),
-    );
+    const closedMonths = await this.closedMonths(branch.id);
+    const lump = branch.modules.includes('lump_sales');
 
     const rows: ParsedRow[] = [];
     const errors: string[] = [];
@@ -211,16 +250,22 @@ export class SalesImportService {
       else if (closedMonths.has(day.slice(0, 7))) problems.push(`el mes ${day.slice(0, 7)} ya fue cerrado`);
       const code = values[1] === null ? '' : String(values[1]).trim();
       const product = code ? byCode.get(plain(code)) : undefined;
-      if (!code) problems.push('falta el código del producto');
-      else if (!product) problems.push(`no existe un producto con código "${code}"`);
-      const quantity = parseInteger(values[2]);
+      if (!code && !lump) problems.push('falta el código del producto');
+      else if (code && !product) problems.push(`no existe un producto con código "${code}"`);
+      // Sin código (venta por valor total) la cantidad es opcional.
+      const quantity = !code && values[2] === null ? 1 : parseInteger(values[2]);
       if (!quantity || quantity < 1 || quantity > 100_000) problems.push('cantidad inválida');
       const method = parseMethod(values[3] === null ? '' : String(values[3]));
       if (!method) problems.push('método de pago inválido (Efectivo, Transferencia o QR Bold)');
       const amount = parseInteger(values[4]);
       if (amount === null || amount < 1 || amount > 1_000_000_000) problems.push('valor pagado inválido');
       if (problems.length) errors.push(`Fila ${n}: ${problems.join('; ')}`);
-      else rows.push({ row: n, day: day!, productId: product!.id, productName: product!.name, quantity: quantity!, method: method!, amount: amount! });
+      else {
+        rows.push({
+          day: day!, productId: product?.id ?? null, productName: product?.name ?? LUMP_ITEM_NAME, quantity: quantity!,
+          payments: [{ method: method!, amount: amount! }], amount: amount!, note: `Cargada desde Excel (fila ${n})`,
+        });
+      }
     });
 
     if (errors.length) {
